@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hypercortex BCI Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0070f3; --primary-hover: #0051a8;
+            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            --card-bg: #ffffff; --text-main: #2d3748; --text-muted: #718096;
+            --border-color: #e2e8f0; --success: #38a169; --danger: #e53e3e;
+            --warning: #d69e2e; --info: #3182ce; --metric-bg: #f8fafc;
+            --badge-bg: #ffffff; --btn-bg: transparent; --btn-hover: #ffffff;
+            --app-title-gradient: linear-gradient(90deg, #2d3748, #718096);
+            --osc-bg: #f8fafc; --osc-border: #e2e8f0; --osc-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
+        }
+
+        body.dark-mode {
+            --primary: #3182ce; --primary-hover: #63b3ed;
+            --bg-gradient: linear-gradient(135deg, #111827 0%, #1a202c 100%);
+            --card-bg: #2d3748; --text-main: #f7fafc; --text-muted: #a0aec0;
+            --border-color: #4a5568; --metric-bg: #1a202c; --badge-bg: #1a202c;
+            --btn-bg: #4a5568; --btn-hover: #2d3748;
+            --app-title-gradient: linear-gradient(90deg, #f7fafc, #a0aec0);
+            --osc-bg: #0f172a; --osc-border: #1e293b; --osc-shadow: inset 0 2px 20px rgba(0,0,0,0.2);
+        }
+
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-gradient); color: var(--text-main); display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 30px 20px; transition: background 0.3s, color 0.3s; }
+
+        .app-header { width: 100%; max-width: 1400px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 0 10px; }
+        .app-title { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.5px; margin: 0; background: var(--app-title-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .header-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;}
+        .theme-btn { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 14px; border-radius: 30px; font-size: 0.9rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: all 0.2s; outline: none; }
+        select.theme-btn { appearance: none; padding-right: 35px; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 16px; }
+        body.dark-mode select.theme-btn { background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f7fafc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); }
+        .theme-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        
+        .play-btn { background: var(--success); color: white; border: none; padding: 8px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 10px rgba(56, 161, 105, 0.3); display: flex; align-items: center; gap: 5px; }
+        .play-btn:hover { background: #2f855a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(56, 161, 105, 0.4); }
+        .play-btn:active { transform: translateY(1px); }
+        
+        .btn-warning { background: var(--warning); box-shadow: 0 2px 10px rgba(214, 158, 46, 0.3); }
+        .btn-warning:hover { background: #b7791f; box-shadow: 0 4px 12px rgba(214, 158, 46, 0.4); }
+        .btn-info { background: var(--info); box-shadow: 0 2px 10px rgba(49, 130, 206, 0.3); }
+        .btn-info:hover { background: #2b6cb0; box-shadow: 0 4px 12px rgba(49, 130, 206, 0.4); }
+
+        .status-badge { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 30px; font-size: 0.9rem; font-weight: 600; background: var(--badge-bg); box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: all 0.3s; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .connected .status-dot { background-color: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse-green 2s infinite; }
+        .disconnected .status-dot { background-color: var(--danger); box-shadow: 0 0 8px var(--danger); }
+        @keyframes pulse-green { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 161, 105, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(56, 161, 105, 0); } 100% { transform: scale(0.95); } }
+
+        .main-container { display: flex; flex-wrap: wrap; gap: 25px; justify-content: center; max-width: 1400px; width: 100%; align-items: flex-start; }
+        .card { background: var(--card-bg); padding: 2.5rem; border-radius: 24px; box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08); border: 1px solid var(--border-color); text-align: center; flex: 1; min-width: 350px; transition: background 0.3s, border-color 0.3s; }
+        .wheel-card { flex: 0 0 420px; max-width: 420px; }
+        h2 { font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; font-weight: 600; color: var(--text-main); }
+        #wheelCanvas { max-width: 100%; height: auto; margin: 10px 0; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.05)); }
+
+        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .metric-box { background: var(--metric-bg); padding: 15px; border-radius: 16px; border: 1px solid var(--border-color); text-align: left; transition: background 0.3s, border-color 0.3s; }
+        .metric-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+        .metric-label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
+        .metric-value { font-size: 1.4rem; font-weight: 700; color: var(--text-main); }
+        .progress-bg { height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden; width: 100%; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s, background-color 0.4s; }
+
+        .true-target-panel { margin-top: 15px; padding: 12px; background: var(--metric-bg); border-radius: 16px; border: 1px dashed var(--border-color); font-size: 0.9rem; transition: background 0.3s, border-color 0.3s;}
+        .true-target-title { font-weight: 700; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .true-target-value { font-weight: 700; font-size: 1.1rem; color: var(--text-main); }
+
+        #current-emotion { margin-top: 15px; font-size: 1.4rem; font-weight: 700; min-height: 1.8em; display: flex; align-items: center; justify-content: center; padding: 10px; background: var(--metric-bg); border-radius: 16px; border: 2px solid var(--primary); transition: background 0.3s, border-color 0.3s; box-shadow: 0 4px 15px rgba(0, 112, 243, 0.15);}
+
+        .signal-container { display: none; flex-direction: column; flex: 2; min-width: 600px; animation: slideIn 0.4s ease-out forwards; }
+        .signal-container.visible { display: flex; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        .trial-progress-container { width: 100%; height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden; margin-top: 5px; margin-bottom: 5px; }
+        #trial-progress-bar { width: 0%; height: 100%; background: var(--success); transition: width 0.2s linear; }
+
+        canvas#signalCanvas { width: 100%; height: 620px; background: var(--osc-bg); border-radius: 12px; border: 1px solid var(--osc-border); cursor: crosshair; margin-top: 5px; box-shadow: var(--osc-shadow); transition: background 0.3s, border-color 0.3s; }
+
+        .controls-header { display: flex; justify-content: space-between; align-items: center; }
+        .timebase-controls { display: flex; gap: 8px; background: var(--metric-bg); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .ctrl-btn { padding: 6px 14px; border: none; background: var(--btn-bg); border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); transition: all 0.2s; }
+        .ctrl-btn.active, .ctrl-btn:hover { background: var(--card-bg); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        .toggle-btn { background: var(--primary); color: white; border: none; padding: 14px 24px; border-radius: 12px; cursor: pointer; font-size: 1rem; font-weight: 600; transition: all 0.2s; margin-top: 25px; width: 100%; box-shadow: 0 4px 14px rgba(0, 112, 243, 0.3); }
+        .toggle-btn:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0, 112, 243, 0.4); }
+        .toggle-btn:active { transform: translateY(1px); }
+        .toggle-btn.active { background: var(--border-color); color: var(--text-main); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1); }
+        .toggle-btn.active:hover { background: var(--text-muted); color: white;}
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <h1 class="app-title">Hypercortex BCI</h1>
+    <div class="header-controls">
+        
+        <select id="subjectSelector" class="theme-btn" title="Selectează subiectul">
+            <optgroup label="📚 Date Văzute (Train/Val)">
+                <option value="01">Subiect 01</option><option value="02">Subiect 02</option><option value="03">Subiect 03</option><option value="04">Subiect 04</option><option value="05">Subiect 05</option><option value="06">Subiect 06</option><option value="07">Subiect 07</option><option value="08">Subiect 08</option><option value="09">Subiect 09</option><option value="10" selected>Subiect 10</option>
+                <option value="11">Subiect 11</option><option value="12">Subiect 12</option><option value="13">Subiect 13</option><option value="14">Subiect 14</option><option value="15">Subiect 15</option><option value="16">Subiect 16</option><option value="17">Subiect 17</option><option value="18">Subiect 18</option><option value="19">Subiect 19</option><option value="20">Subiect 20</option>
+            </optgroup>
+            <optgroup label="🚀 Date Noi (Test Exclusiv)">
+                <option value="21">Subiect 21</option><option value="22">Subiect 22</option><option value="23">Subiect 23</option><option value="24">Subiect 24</option><option value="25">Subiect 25</option><option value="26">Subiect 26</option><option value="27">Subiect 27</option><option value="28">Subiect 28</option><option value="29">Subiect 29</option><option value="30">Subiect 30</option><option value="31">Subiect 31</option><option value="32">Subiect 32</option>
+            </optgroup>
+        </select>
+
+        <select id="trialSelector" class="theme-btn" title="Selectează Trial-ul"></select>
+        
+        <div style="display: flex; gap: 8px;">
+            <button id="playBtn" class="play-btn">▶️ Play</button>
+            <button id="pauseBtn" class="play-btn btn-warning" style="display: none;">⏸️ Pause</button>
+            <button id="replayBtn" class="play-btn btn-info" style="display: none;">🔄 Replay</button>
+        </div>
+
+        <button id="theme-toggle" class="theme-btn">🌙</button>
+        <div id="status" class="status-badge disconnected"><div class="status-dot"></div><span id="status-text">Deconectat</span></div>
+    </div>
+</header>
+
+<div class="main-container">
+    <!-- CARD STÂNGA: ROATA -->
+    <div class="card wheel-card">
+        <h2>Cercul Emoțiilor (Deep GAT)</h2>
+        <div style="position: relative; display: inline-block;">
+            <canvas id="wheelCanvas" width="360" height="360"></canvas>
+        </div>
+        
+        <!-- Predicția Live a AI-ului -->
+        <div id="current-emotion">--</div>
+
+        <!-- Tinta Reală din DEAP Dataset -->
+        <div class="true-target-panel">
+            <div class="true-target-title">🎯 Tinta Reală (Ground Truth DEAP)</div>
+            <div id="true-labels-text" class="true-target-value">Așteptare stream...</div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-box">
+                <div class="metric-header"><span class="metric-label">Valence Pred.</span><span class="metric-value" id="val-display">0.00</span></div>
+                <div class="progress-bg"><div class="progress-fill" id="val-bar" style="width: 50%; background: var(--info);"></div></div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-header"><span class="metric-label">Arousal Pred.</span><span class="metric-value" id="aro-display">0.00</span></div>
+                <div class="progress-bg"><div class="progress-fill" id="aro-bar" style="width: 50%; background: var(--danger);"></div></div>
+            </div>
+        </div>
+
+        <button class="toggle-btn" onclick="toggleSignals()"><span id="toggle-icon">📊</span> <span id="toggle-text">Arată Semnale Live (16ch)</span></button>
+    </div>
+
+    <!-- CARD DREAPTA: OSCILOSCOP -->
+    <div class="card signal-container" id="signalPanel">
+        <div class="controls-header">
+            <h2>Osciloscop Medical EEG</h2>
+            <div class="timebase-controls">
+                <button class="ctrl-btn" id="tb-5" onclick="changeTimebase(5)">5s</button>
+                <button class="ctrl-btn active" id="tb-10" onclick="changeTimebase(10)">10s</button>
+                <button class="ctrl-btn" id="tb-30" onclick="changeTimebase(30)">30s</button>
+            </div>
+        </div>
+        
+        <!-- Progress Bar Trial cu Text -->
+        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: bold; color: var(--text-muted); margin-top: 15px;">
+            <span>Progres Trial</span>
+            <span id="progress-text">0%</span>
+        </div>
+        <div class="trial-progress-container">
+            <div id="trial-progress-bar"></div>
+        </div>
+
+        <canvas id="signalCanvas"></canvas>
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-top:8px; font-weight: 600; text-transform: uppercase;">
+            <span>← Istoric Semnal</span>
+            <span id="trial-status-text">Prezent (Live) →</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    let ws;
+    const WS_URL = "ws://localhost:65432";
+    let isPaused = false;
+
+    // Populează Selectorul de Trial (1-40)
+    const trialSelector = document.getElementById('trialSelector');
+    for(let i=1; i<=40; i++) {
+        const opt = document.createElement('option');
+        opt.value = i - 1; opt.innerText = `Trial ${i}`;
+        trialSelector.appendChild(opt);
+    }
+
+    // --- CONTROALE PLAY / PAUSE / REPLAY ---
+    document.getElementById('playBtn').addEventListener('click', () => {
+        const selectedSubject = document.getElementById('subjectSelector').value;
+        const selectedTrial = document.getElementById('trialSelector').value;
+        
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            if (isPaused) {
+                ws.send(JSON.stringify({ type: "cmd_resume_stream" }));
+                isPaused = false;
+                document.getElementById('playBtn').style.display = "none";
+                document.getElementById('pauseBtn').style.display = "flex";
+                document.getElementById('trial-status-text').innerText = "Streaming live...";
+            } else {
+                ws.send(JSON.stringify({ 
+                    type: "cmd_start_stream", 
+                    subject: selectedSubject,
+                    trial: parseInt(selectedTrial)
+                }));
+                resetData();
+                document.getElementById('trial-status-text').innerText = "Încărcare date...";
+                document.getElementById('trial-progress-bar').style.width = "0%";
+                document.getElementById('progress-text').innerText = "0%";
+                document.getElementById('true-labels-text').innerText = "Se extrage ținta...";
+                
+                document.getElementById('playBtn').style.display = "none";
+                document.getElementById('pauseBtn').style.display = "flex";
+                document.getElementById('replayBtn').style.display = "flex";
+            }
+        } else {
+            alert("Conexiunea cu serverul este oprită!");
+        }
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "cmd_pause_stream" }));
+            isPaused = true;
+            document.getElementById('pauseBtn').style.display = "none";
+            document.getElementById('playBtn').style.display = "flex";
+            document.getElementById('playBtn').innerHTML = "▶️ Resume";
+            document.getElementById('trial-status-text').innerText = "⏸️ Pauză";
+        }
+    });
+
+    document.getElementById('replayBtn').addEventListener('click', () => {
+        const selectedSubject = document.getElementById('subjectSelector').value;
+        const selectedTrial = document.getElementById('trialSelector').value;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ 
+                type: "cmd_start_stream", 
+                subject: selectedSubject,
+                trial: parseInt(selectedTrial)
+            }));
+            isPaused = false;
+            resetData(); 
+            document.getElementById('trial-status-text').innerText = "Reîncărcare Trial...";
+            document.getElementById('trial-progress-bar').style.width = "0%";
+            document.getElementById('progress-text').innerText = "0%";
+            
+            document.getElementById('playBtn').style.display = "none";
+            document.getElementById('pauseBtn').style.display = "flex";
+        }
+    });
+
+    const themeToggle = document.getElementById('theme-toggle');
+    if (localStorage.getItem('theme') === 'dark') { document.body.classList.add('dark-mode'); themeToggle.innerText = '☀️'; }
+    themeToggle.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        themeToggle.innerText = isDark ? '☀️' : '🌙';
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        drawWheel(); if(isSignalVisible) drawOscilloscope();
+    });
+
+    // --- STATE ---
+    let currentValence = 0.5, currentArousal = 0.5, targetValence = 0.5, targetArousal = 0.5;
+    const NUM_CHANNELS = 16;
+    const CHANNEL_NAMES = ["Fp1", "F3", "F7", "C3", "T7", "P3", "P7", "O1", "Fp2", "F4", "F8", "C4", "T8", "P4", "P8", "O2"];
+    const SAMPLE_RATE = 128;
+    let WINDOW_SECONDS = 10;
+    const MAX_BUFFER_LEN = 30 * SAMPLE_RATE;
+    let signalBuffer = Array(NUM_CHANNELS).fill().map(() => []);
+    let isSignalVisible = false;
+    
+    // REPARATIE SCALA VIZUALA: a fost 0.5 si sarea de limitele fiecarui canal.
+    const SIGNAL_SCALE = 0.15; 
+    const LABEL_MARGIN_LEFT = 35; 
+
+    const wheelCanvas = document.getElementById('wheelCanvas'), wCtx = wheelCanvas.getContext('2d');
+    const sigCanvas = document.getElementById('signalCanvas'), sCtx = sigCanvas.getContext('2d');
+    const wWidth = wheelCanvas.width, wHeight = wheelCanvas.height, wCenterX = wWidth/2, wCenterY = wHeight/2, wRadius = wWidth/2 - 12; 
+
+    const getWheelColors = () => document.body.classList.contains('dark-mode') 
+        ? { q1: '#4d4825', q2: '#542a2a', q3: '#2a3b54', q4: '#2a4c3b', active: { q1: '#ecc94b', q2: '#e53e3e', q3: '#3182ce', q4: '#38a169' } }
+        : { q1: '#fef9c3', q2: '#fed7d7', q3: '#e2e8f0', q4: '#c6f6d5', active: { q1: '#ecc94b', q2: '#e53e3e', q3: '#3182ce', q4: '#38a169' } };
+
+    function drawWheel() {
+        wCtx.clearRect(0, 0, wWidth, wHeight);
+        const highA = currentArousal > 0.5, posV = currentValence > 0.5, colors = getWheelColors(), isDark = document.body.classList.contains('dark-mode');
+        
+        wCtx.beginPath(); wCtx.moveTo(wCenterX, wCenterY); wCtx.arc(wCenterX, wCenterY, wRadius, 0, -Math.PI/2, true); wCtx.fillStyle = (highA && posV) ? colors.active.q1 : colors.q1; wCtx.fill();
+        wCtx.beginPath(); wCtx.moveTo(wCenterX, wCenterY); wCtx.arc(wCenterX, wCenterY, wRadius, -Math.PI/2, -Math.PI, true); wCtx.fillStyle = (highA && !posV) ? colors.active.q2 : colors.q2; wCtx.fill();
+        wCtx.beginPath(); wCtx.moveTo(wCenterX, wCenterY); wCtx.arc(wCenterX, wCenterY, wRadius, -Math.PI, -Math.PI*1.5, true); wCtx.fillStyle = (!highA && !posV) ? colors.active.q3 : colors.q3; wCtx.fill();
+        wCtx.beginPath(); wCtx.moveTo(wCenterX, wCenterY); wCtx.arc(wCenterX, wCenterY, wRadius, -Math.PI*1.5, 0, true); wCtx.fillStyle = (!highA && posV) ? colors.active.q4 : colors.q4; wCtx.fill();
+
+        wCtx.beginPath(); wCtx.moveTo(wCenterX, 10); wCtx.lineTo(wCenterX, wHeight - 10); wCtx.moveTo(10, wCenterY); wCtx.lineTo(wWidth - 10, wCenterY); wCtx.strokeStyle = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'; wCtx.lineWidth = 3; wCtx.stroke();
+
+        wCtx.font = "bold 13px Inter"; wCtx.fillStyle = isDark ? "#f7fafc" : "#2d3748"; wCtx.textAlign = "center";
+        wCtx.fillText("FERICIRE", wCenterX + wRadius/2, wCenterY - wRadius/2); wCtx.fillText("STRES", wCenterX - wRadius/2, wCenterY - wRadius/2);
+        wCtx.fillText("TRISTEȚE", wCenterX - wRadius/2, wCenterY + wRadius/2); wCtx.fillText("CALM", wCenterX + wRadius/2, wCenterY + wRadius/2);
+        wCtx.font = "600 10px Inter"; wCtx.fillStyle = isDark ? "#a0aec0" : "#718096";
+        wCtx.fillText("VALENCE (+)", wWidth - 40, wCenterY + 15); wCtx.fillText("AROUSAL (+)", wCenterX + 40, 20);
+
+        let relX = (currentValence - 0.5) * 2, relY = (currentArousal - 0.5) * 2;
+        let dist = Math.sqrt(relX*relX + relY*relY); if (dist > 1.0) { relX /= dist; relY /= dist; } 
+        const x = wCenterX + relX * (wRadius - 15), y = wCenterY - relY * (wRadius - 15);
+
+        wCtx.beginPath(); wCtx.arc(x, y+2, 12, 0, 2*Math.PI); wCtx.fillStyle = isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.15)'; wCtx.fill();
+        wCtx.beginPath(); wCtx.arc(x, y, 9, 0, 2*Math.PI); wCtx.fillStyle = isDark ? '#e2e8f0' : '#1a202c'; wCtx.fill();
+        wCtx.strokeStyle = isDark ? '#2d3748' : '#ffffff'; wCtx.lineWidth = 2.5; wCtx.stroke();
+    }
+
+    const getOscColors = () => document.body.classList.contains('dark-mode') 
+        ? { gridLine: '#1e293b', textColor: '#94a3b8', signalLine: '#38bdf8' }
+        : { gridLine: '#e2e8f0', textColor: '#64748b', signalLine: '#2563eb' };
+
+    function resizeSignalCanvas() {
+        const rect = sigCanvas.getBoundingClientRect();
+        sigCanvas.width = rect.width * window.devicePixelRatio; sigCanvas.height = rect.height * window.devicePixelRatio;
+        sCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        if(isSignalVisible) drawOscilloscope();
+    }
+    window.addEventListener('resize', resizeSignalCanvas);
+
+    function drawOscilloscope() {
+        if (!isSignalVisible) return;
+        const w = sigCanvas.getBoundingClientRect().width, h = sigCanvas.getBoundingClientRect().height;
+        sCtx.clearRect(0, 0, w, h);
+        const chHeight = h / NUM_CHANNELS, totalPointsToDraw = WINDOW_SECONDS * SAMPLE_RATE, oColors = getOscColors(), drawWidth = w - LABEL_MARGIN_LEFT;
+
+        sCtx.lineWidth = 1; sCtx.font = "600 11px Inter"; sCtx.textBaseline = "middle";
+        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+            const yTop = ch * chHeight, yCenter = yTop + chHeight / 2;
+            sCtx.strokeStyle = oColors.gridLine;
+            sCtx.beginPath(); sCtx.moveTo(0, yTop); sCtx.lineTo(w, yTop); sCtx.stroke();
+            sCtx.setLineDash([4, 4]); sCtx.beginPath(); sCtx.moveTo(LABEL_MARGIN_LEFT, yCenter); sCtx.lineTo(w, yCenter); sCtx.stroke(); sCtx.setLineDash([]); 
+            sCtx.fillStyle = oColors.textColor; sCtx.textAlign = "left"; sCtx.fillText(CHANNEL_NAMES[ch], 5, yCenter);
+        }
+
+        sCtx.strokeStyle = oColors.gridLine; sCtx.textAlign = "center"; sCtx.fillStyle = oColors.textColor;
+        for(let t=0; t <= WINDOW_SECONDS; t++) {
+            const x = w - (t * (drawWidth / WINDOW_SECONDS));
+            if (x >= LABEL_MARGIN_LEFT) { sCtx.beginPath(); sCtx.moveTo(x, 0); sCtx.lineTo(x, h); sCtx.stroke(); if(t < WINDOW_SECONDS && t > 0) sCtx.fillText(`-${t}s`, x, h - 10); }
+        }
+
+        sCtx.lineWidth = 1.5; sCtx.lineJoin = 'round'; sCtx.lineCap = 'round';
+        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+            const data = signalBuffer[ch], len = data.length; if (len < 2) continue;
+            const yCenter = ch * chHeight + chHeight / 2;
+            sCtx.save(); sCtx.beginPath(); sCtx.rect(LABEL_MARGIN_LEFT, ch * chHeight, drawWidth, chHeight); sCtx.clip();
+            sCtx.strokeStyle = oColors.signalLine; sCtx.beginPath();
+            let started = false;
+            for (let i = 0; i < totalPointsToDraw; i++) {
+                if (len - 1 - i < 0) break;
+                const x = w - (i / totalPointsToDraw) * drawWidth, y = yCenter - (data[len - 1 - i] * SIGNAL_SCALE);
+                if (!started) { sCtx.moveTo(x, y); started = true; } else { sCtx.lineTo(x, y); }
+            }
+            sCtx.stroke(); sCtx.restore();
+        }
+    }
+
+    function changeTimebase(seconds) { WINDOW_SECONDS = seconds; document.querySelectorAll('.timebase-controls .ctrl-btn').forEach(btn => btn.classList.remove('active')); document.getElementById(`tb-${seconds}`).classList.add('active'); if(isSignalVisible) drawOscilloscope(); }
+    function toggleSignals() {
+        isSignalVisible = !isSignalVisible;
+        document.getElementById('signalPanel').classList.toggle('visible', isSignalVisible);
+        document.querySelector('.toggle-btn').classList.toggle('active', isSignalVisible);
+        document.getElementById('toggle-icon').innerText = isSignalVisible ? "📉" : "📊";
+        document.getElementById('toggle-text').innerText = isSignalVisible ? "Ascunde Osciloscop" : "Arată Semnale Live (16ch)";
+        if (isSignalVisible) setTimeout(resizeSignalCanvas, 50); 
+    }
+    function resetData() { for(let i=0; i<NUM_CHANNELS; i++) signalBuffer[i] = []; if(isSignalVisible) drawOscilloscope(); }
+
+    function getEmotionLabel(probAro, probVal) {
+        const hA = probAro > 0.5, pV = probVal > 0.5;
+        if(hA && pV) return {txt: "😊 FERICIRE", col: "var(--warning)"};
+        if(hA && !pV) return {txt: "😠 STRES", col: "var(--danger)"};
+        if(!hA && !pV) return {txt: "😔 TRISTEȚE", col: "var(--info)"};
+        return {txt: "😌 CALM", col: "var(--success)"};
+    }
+
+    function updateEmotionUI() {
+        const emo = getEmotionLabel(currentArousal, currentValence); 
+        document.getElementById('current-emotion').innerText = emo.txt + " (Predicție GAT)"; 
+        document.getElementById('current-emotion').style.color = emo.col;
+        document.getElementById('current-emotion').style.borderColor = emo.col;
+        
+        document.getElementById('val-display').innerText = currentValence.toFixed(2);
+        document.getElementById('aro-display').innerText = currentArousal.toFixed(2);
+        document.getElementById('val-bar').style.width = `${currentValence * 100}%`; document.getElementById('val-bar').style.backgroundColor = currentValence > 0.5 ? 'var(--warning)' : 'var(--info)';
+        document.getElementById('aro-bar').style.width = `${currentArousal * 100}%`; document.getElementById('aro-bar').style.backgroundColor = currentArousal > 0.5 ? 'var(--danger)' : 'var(--success)';
+    }
+
+    function animate() {
+        currentValence += (targetValence - currentValence) * 0.1; currentArousal += (targetArousal - currentArousal) * 0.1;
+        drawWheel(); if(isSignalVisible) drawOscilloscope(); requestAnimationFrame(animate);
+    }
+
+    function connect() {
+        try {
+            ws = new WebSocket(WS_URL);
+            ws.onopen = () => { document.getElementById('status-text').innerText="Server OK"; document.getElementById('status').className="status-badge connected"; };
+            ws.onclose = () => { document.getElementById('status-text').innerText="Offline"; document.getElementById('status').className="status-badge disconnected"; setTimeout(connect, 2000); };
+            ws.onerror = (e) => { console.warn("Eroare WebSocket. Posibil blocat de securitatea browserului."); };
+            ws.onmessage = (e) => {
+                try {
+                    const msg = JSON.parse(e.data);
+                    
+                    // Ground Truth
+                    if (msg.type === "stream_info") {
+                        const tv = msg.true_valence, ta = msg.true_arousal;
+                        // Label-urile brute DEAP sunt între 1 și 9, pragul este 6.5
+                        const true_hA = ta > 6.5, true_pV = tv > 6.5;
+                        let txt = "😌 CALM", col = "var(--success)";
+                        if(true_hA && true_pV) { txt="😊 FERICIRE"; col="var(--warning)"; }
+                        else if(true_hA && !true_pV) { txt="😠 STRES"; col="var(--danger)"; }
+                        else if(!true_hA && !true_pV) { txt="😔 TRISTEȚE"; col="var(--info)"; }
+
+                        document.getElementById('true-labels-text').innerHTML = `<span style="color:${col}">${txt}</span> (V: ${tv.toFixed(1)}, A: ${ta.toFixed(1)})`;
+                        document.getElementById('trial-status-text').innerText = "Streaming live...";
+                    }
+                    // Progres
+                    else if (msg.type === "progress") {
+                        document.getElementById('trial-progress-bar').style.width = `${msg.percent}%`;
+                        document.getElementById('progress-text').innerText = `${msg.percent}%`;
+                    }
+                    // Sfârșit Trial
+                    else if (msg.type === "stream_end") {
+                        document.getElementById('trial-status-text').innerText = "⏹️ Trial Finalizat. Aștept comandă.";
+                        document.getElementById('trial-progress-bar').style.width = "100%";
+                        document.getElementById('progress-text').innerText = "100%";
+                        
+                        document.getElementById('playBtn').style.display = "flex";
+                        document.getElementById('playBtn').innerHTML = "▶️ Play Trial";
+                        document.getElementById('pauseBtn').style.display = "none";
+                        isPaused = false;
+                    }
+                    // Predicția GAT
+                    else if (msg.type === "prediction") {
+                        targetArousal = msg.arousal; targetValence = msg.valence; updateEmotionUI();
+                    }
+                    // Semnalul RAW
+                    else if (msg.type === "signal") {
+                        const chunk = msg.data;
+                        for (let ch = 0; ch < NUM_CHANNELS; ch++) {
+                            if (chunk[ch]) {
+                                signalBuffer[ch].push(...chunk[ch]);
+                                if (signalBuffer[ch].length > MAX_BUFFER_LEN) signalBuffer[ch] = signalBuffer[ch].slice(signalBuffer[ch].length - MAX_BUFFER_LEN);
+                            }
+                        }
+                    }
+                } catch(err) {
+                    // Ignorăm silențios erorile de procesare JSON
+                }
+            };
+        } catch (err) {
+            console.error("Conexiunea WebSocket este blocată (ex. în mediul Canvas). Deschide fișierul local.", err);
+            document.getElementById('status-text').innerText="Blocat (Deschide local)";
+            document.getElementById('status').className="status-badge disconnected";
+        }
+    }
+
+    updateEmotionUI(); connect(); animate();
+</script>
+</body>
+</html>

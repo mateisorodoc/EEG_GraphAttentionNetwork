@@ -1,0 +1,10 @@
+*.csv
+*.edf
+*.npy
+*.fif
+data/
+datasets/
+*.pt
+*.pth
+*.h5
+models/
