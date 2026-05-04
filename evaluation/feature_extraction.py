@@ -21,6 +21,20 @@ from scipy import signal
 from scipy.signal import hilbert
 from tqdm import tqdm
 
+from eval_config import (
+    BANDS,
+    BAND_NAMES,
+    N_BANDS,
+    DEAP_CHANNEL_NAMES,
+    OPENBCI_CHANNEL_NAMES,
+    DEAP_N_CH,
+    OPENBCI_N_CH,
+    FEATURE_SETS,
+    DEFAULT_FEATURE_SET,
+    get_feature_set,
+    get_cache_dirs,
+)
+
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 # ─── Configuration ────────────────────────────────────────────────────────────
@@ -29,36 +43,18 @@ WINDOW = 256  # 2 seconds
 STEP = 128  # 1 second (reduced overlap from 93.75% to 50% for better independence)
 PRE_TRIAL = 3 * FS  # 3s baseline to skip in DEAP
 
-BANDS = [(4, 8), (8, 12), (12, 16), (16, 25), (25, 45)]
-BAND_NAMES = ['theta', 'alpha', 'beta_l', 'beta_h', 'gamma']
-N_BANDS = len(BANDS)
-
-# DEAP 32 EEG channels (full set)
-# Order: Fp1,AF3,F3,F7,FC5,FC1,C3,T7,CP5,CP1,P3,P7,PO3,O1,Oz,Pz,
-#        Fp2,AF4,F4,F8,FC6,FC2,C4,T8,CP6,CP2,P4,P8,PO4,O2,O9,O10
-DEAP_32_CHANNELS = list(range(32))  # Use all 32 EEG channels
-DEAP_CHANNEL_NAMES = [
-    'Fp1','AF3','F3','F7','FC5','FC1','C3','T7',
-    'CP5','CP1','P3','P7','PO3','O1','Oz','Pz',
-    'Fp2','AF4','F4','F8','FC6','FC2','C4','T8',
-    'CP6','CP2','P4','P8','PO4','O2','O9','O10'
-]
-DEAP_N_CH = 32
-
-# OpenBCI uses 16 channels (unchanged)
-OPENBCI_N_CH = 16
-OPENBCI_CHANNEL_NAMES = ['Fp1','F3','F7','C3','T7','P3','P7','O1',
-                         'Fp2','F4','F8','C4','T8','P4','P8','O2']
-N_CH = 16  # Default for OpenBCI extraction functions
+DEAP_32_CHANNELS = list(range(DEAP_N_CH))  # Use all 32 EEG channels
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DEAP_RAW = os.path.join(PROJECT_ROOT, '..', 'data', 'DEAP', 'data_preprocessed_python')
-DEAP_OUT = os.path.join(PROJECT_ROOT, '..', 'data', 'DEAP', 'output', 'features_v6')
 OPENBCI_RAW = os.path.join(PROJECT_ROOT, '..', 'data', 'recordings_clean')
-OPENBCI_OUT = os.path.join(OPENBCI_RAW, 'features_v5')
 
-os.makedirs(DEAP_OUT, exist_ok=True)
-os.makedirs(OPENBCI_OUT, exist_ok=True)
+
+def resolve_output_dirs(feature_set):
+    deap_out, openbci_out = get_cache_dirs(PROJECT_ROOT, feature_set)
+    os.makedirs(deap_out, exist_ok=True)
+    os.makedirs(openbci_out, exist_ok=True)
+    return deap_out, openbci_out
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -157,7 +153,7 @@ def compute_coherence_summary(window, fs=FS):
     freqs, psd_all = signal.welch(window, fs=fs, nperseg=nperseg, axis=-1)
     
     # For each channel pair, compute coherence
-    # This is O(N_CH^2) but N_CH=16 so it's fine
+    # This is O(n_ch^2) but n_ch is small, so it's fine
     coh_matrix = np.zeros((n_ch, n_ch, N_BANDS))
     
     for i in range(n_ch):
@@ -324,8 +320,10 @@ def extract_deap_subject(sub_id, feature_groups=None):
     }
 
 
-def extract_all_deap(feature_groups=None, subjects=None):
+def extract_all_deap(feature_groups=None, subjects=None, out_dir=None):
     """Extract features for all DEAP subjects and cache."""
+    if out_dir is None:
+        raise ValueError('DEAP output directory is required.')
     if subjects is None:
         subjects = [f'{i:02d}' for i in range(1, 21)]
     
@@ -334,7 +332,7 @@ def extract_all_deap(feature_groups=None, subjects=None):
     print(f'  Feature groups: {feature_groups or "all"}')
     
     for sub_id in tqdm(subjects, desc='DEAP subjects'):
-        out_fp = os.path.join(DEAP_OUT, f's{sub_id}.npz')
+        out_fp = os.path.join(out_dir, f's{sub_id}.npz')
         if os.path.exists(out_fp):
             # Verify shape
             d = np.load(out_fp)
@@ -374,30 +372,33 @@ def extract_openbci_trial(filepath, feature_groups=None, fs=FS):
         if isinstance(row, np.ndarray) and row.ndim == 1:
             # Old format: flat 160-dim vector
             feat = row[0] if isinstance(row[0], np.ndarray) else row
-            windows.append(feat.reshape(N_CH, -1))
+            windows.append(feat.reshape(OPENBCI_N_CH, -1))
         elif isinstance(row, (list, np.ndarray)) and len(row) >= 1:
             feat = row[0] if isinstance(row[0], np.ndarray) else row
             if hasattr(feat, 'shape'):
                 if feat.ndim == 1:
-                    windows.append(feat.reshape(N_CH, -1))
+                    windows.append(feat.reshape(OPENBCI_N_CH, -1))
                 elif feat.ndim == 2:
                     windows.append(feat)
     
     return np.array(windows, dtype=np.float32) if windows else None
 
 
-def extract_openbci_from_npy(feature_groups=None):
+def extract_openbci_from_npy(feature_groups=None, feature_set=None):
     """Extract OpenBCI features from existing .npy caches.
     
     Since we don't have raw waveforms easily accessible for re-windowing,
     we'll load the v3 .npy files which contain raw EEG segments, and
     re-extract with the new feature pipeline.
     """
+    if feature_set is None:
+        raise ValueError('feature_set is required for OpenBCI extraction.')
+
     v3_dir = os.path.join(OPENBCI_RAW, 'data_extracted_v3')
     
     if not os.path.exists(v3_dir):
         print(f'  ⚠ data_extracted_v3 not found, falling back to v2 format')
-        return _extract_openbci_v2_fallback()
+        return _extract_openbci_v2_fallback(feature_set)
     
     label_map = {'calm': 0, 'happy': 1, 'sad': 2, 'stressed': 3}
     all_X, all_Y, all_groups = [], [], []
@@ -414,7 +415,7 @@ def extract_openbci_from_npy(feature_groups=None):
         try:
             raw_data = np.load(fp, allow_pickle=True)
             # v3 format: (n_windows, 16, raw_samples_per_window)
-            if raw_data.ndim == 3 and raw_data.shape[1] == N_CH:
+            if raw_data.ndim == 3 and raw_data.shape[1] == OPENBCI_N_CH:
                 for w_idx in range(raw_data.shape[0]):
                     window = raw_data[w_idx]  # (16, samples)
                     if window.shape[1] >= WINDOW:
@@ -427,8 +428,8 @@ def extract_openbci_from_npy(feature_groups=None):
                 # Fallback: treat as pre-extracted
                 for row in raw_data:
                     feat = row[0] if isinstance(row, (list, np.ndarray)) and len(row) > 0 else row
-                    if hasattr(feat, 'shape') and feat.size == N_CH * 10:
-                        all_X.append(feat.reshape(N_CH, 10))
+                    if hasattr(feat, 'shape') and feat.size == OPENBCI_N_CH * 10:
+                        all_X.append(feat.reshape(OPENBCI_N_CH, 10))
                         all_Y.append(label_map[cat])
                         all_groups.append(fname)
         except Exception as e:
@@ -439,15 +440,20 @@ def extract_openbci_from_npy(feature_groups=None):
         return (np.array(all_X, dtype=np.float32),
                 np.array(all_Y, dtype=np.int64),
                 np.array(all_groups))
-    return _extract_openbci_v2_fallback()
+    return _extract_openbci_v2_fallback(feature_set)
 
 
-def _extract_openbci_v2_fallback():
+def _extract_openbci_v2_fallback(feature_set):
     """Fallback: load OpenBCI from v2/v3 format (pre-extracted BP+DE only).
     
     v3 non-v3-suffix files: (N_windows, 2) object array where col 0 is (16, 10).
     v2 files: same format.
     """
+    if feature_set.groups != ('bp', 'de'):
+        raise ValueError(
+            f'OpenBCI v2/v3 fallback only supports bp+de (10 features). '
+            f'Feature set "{feature_set.key}" requires {feature_set.n_feats} features.'
+        )
     # Try v3 first (more files), then v2
     v3_dir = os.path.join(OPENBCI_RAW, 'data_extracted_v3')
     v2_dir = os.path.join(OPENBCI_RAW, 'data_extracted_v2')
@@ -469,8 +475,8 @@ def _extract_openbci_v2_fallback():
         arr = np.load(fp, allow_pickle=True)
         for row in arr:
             feat = row[0] if isinstance(row, (list, np.ndarray)) and len(row) > 0 else row
-            if hasattr(feat, 'shape') and feat.size == N_CH * 10:
-                all_X.append(feat.reshape(N_CH, 10))
+            if hasattr(feat, 'shape') and feat.size == OPENBCI_N_CH * 10:
+                all_X.append(feat.reshape(OPENBCI_N_CH, 10))
                 all_Y.append(label_map[cat])
                 all_groups.append(fname)
     
@@ -490,21 +496,26 @@ if __name__ == '__main__':
     parser.add_argument('--subjects', nargs='+', default=None,
                         help='DEAP subject IDs (e.g., 01 02 03)')
     parser.add_argument('--force', action='store_true', help='Re-extract even if cache exists')
+    parser.add_argument('--feature-set', choices=FEATURE_SETS.keys(),
+                        default=DEFAULT_FEATURE_SET,
+                        help='Feature set to extract (bpde=10, full=26)')
     args = parser.parse_args()
     
-    feature_groups = ['bp', 'de', 'plv', 'coherence', 'pac', 'temporal']
+    feature_set = get_feature_set(args.feature_set)
+    feature_groups = list(feature_set.groups)
+    deap_out, openbci_out = resolve_output_dirs(feature_set)
     
     if args.dataset in ('deap', 'all'):
         if args.force:
             # Remove existing cache
-            for f in glob.glob(os.path.join(DEAP_OUT, '*.npz')):
+            for f in glob.glob(os.path.join(deap_out, '*.npz')):
                 os.remove(f)
-        extract_all_deap(feature_groups, args.subjects)
+        extract_all_deap(feature_groups, args.subjects, out_dir=deap_out)
     
     if args.dataset in ('openbci', 'all'):
         print('\nExtracting OpenBCI features...')
-        X, Y, groups = extract_openbci_from_npy(feature_groups)
+        X, Y, groups = extract_openbci_from_npy(feature_groups, feature_set=feature_set)
         if X is not None:
-            np.savez_compressed(os.path.join(OPENBCI_OUT, 'openbci_all.npz'),
+            np.savez_compressed(os.path.join(openbci_out, 'openbci_all.npz'),
                               X=X, Y=Y, groups=groups)
             print(f'  Saved: {X.shape[0]} windows, shape per window: {X.shape[1:]}')
