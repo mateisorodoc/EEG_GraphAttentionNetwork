@@ -1,0 +1,76 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{koelstra2012}
+\citation{varoquaux2017,roberts2017,saeb2017}
+\citation{koelstra2012}
+\citation{deeplearning_eeg,zheng2015}
+\citation{zhong2020}
+\citation{varoquaux2017}
+\citation{roberts2017}
+\citation{saeb2017}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {II}Related Work}{1}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-A}}EEG Emotion Recognition}{1}{subsection.2.1}\protected@file@percent }
+\citation{velickovic2018}
+\citation{zhong2020}
+\citation{lachaux1999}
+\citation{canolty2010}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-B}}Evaluation Methodology in Neuroimaging}{2}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-C}}Graph Neural Networks for EEG}{2}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}Methodology}{2}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Four-Tier Evaluation Protocol}{2}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}DeepGAT Architecture}{2}{subsection.3.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces DeepGAT Architecture}}{2}{table.1}\protected@file@percent }
+\newlabel{tab:arch}{{I}{2}{DeepGAT Architecture}{table.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Datasets}}{2}{table.2}\protected@file@percent }
+\newlabel{tab:datasets}{{II}{2}{Datasets}{table.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Feature Extraction}{2}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-D}}Datasets}{2}{subsection.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-E}}Training Protocol}{2}{subsection.3.5}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Four-Tier Evaluation Results (Macro F1)}}{3}{table.3}\protected@file@percent }
+\newlabel{tab:main}{{III}{3}{Four-Tier Evaluation Results (Macro F1)}{table.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Progressive performance degradation from Tier~1 through Tier~3 for the 32-channel DeepGAT. The Tier~2--3 gap collapses, suggesting trial-level generalization is the dominant challenge.}}{3}{figure.1}\protected@file@percent }
+\newlabel{fig:tiers}{{1}{3}{Progressive performance degradation from Tier~1 through Tier~3 for the 32-channel DeepGAT. The Tier~2--3 gap collapses, suggesting trial-level generalization is the dominant challenge}{figure.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Results}{3}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Main Tier Comparison}{3}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Progressive Degradation Analysis}{3}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Architecture Invariance Under Proper Evaluation}{3}{subsection.4.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces Progressive Degradation Between Tiers}}{3}{table.4}\protected@file@percent }
+\newlabel{tab:degradation}{{IV}{3}{Progressive Degradation Between Tiers}{table.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {V}{\ignorespaces Model Comparison Under Each Tier (16ch/10feat, MAX\_TRAIN=5000)}}{3}{table.5}\protected@file@percent }
+\newlabel{tab:models}{{V}{3}{Model Comparison Under Each Tier (16ch/10feat, MAX\_TRAIN=5000)}{table.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}Statistical Significance}{3}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-E}}Within-Subject Personalized BCI}{3}{subsection.4.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-F}}Effect of Channel Count and Features}{3}{subsection.4.6}\protected@file@percent }
+\citation{koelstra2012}
+\citation{zhong2020}
+\citation{koelstra2012}
+\@writefile{lot}{\contentsline {table}{\numberline {VI}{\ignorespaces Effect of Channel Count and Feature Set}}{4}{table.6}\protected@file@percent }
+\newlabel{tab:channels}{{VI}{4}{Effect of Channel Count and Feature Set}{table.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Three-tier comparison across models (16ch/10feat). Each group on the x-axis represents one evaluation tier (Tier~1: leaky within-subject, Tier~2: trial-aware, Tier~3: LOSO), with bars showing macro F1 for SVM, MLP, and GAT. All architectures converge to approximately 58\% F1 under trial-aware evaluation, regardless of model complexity.}}{4}{figure.2}\protected@file@percent }
+\newlabel{fig:model_comparison}{{2}{4}{Three-tier comparison across models (16ch/10feat). Each group on the x-axis represents one evaluation tier (Tier~1: leaky within-subject, Tier~2: trial-aware, Tier~3: LOSO), with bars showing macro F1 for SVM, MLP, and GAT. All architectures converge to approximately 58\% F1 under trial-aware evaluation, regardless of model complexity}{figure.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-G}}Per-Subject Variability}{4}{subsection.4.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{4}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Implications for Published Results}{4}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Why Performance Remains Low Under Proper Evaluation}{4}{subsection.5.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {VII}{\ignorespaces Comparison with Published DEAP Results}}{4}{table.7}\protected@file@percent }
+\newlabel{tab:lit}{{VII}{4}{Comparison with Published DEAP Results}{table.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-C}}Limitations}{4}{subsection.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusion}{4}{section.6}\protected@file@percent }
+\bibcite{koelstra2012}{1}
+\bibcite{velickovic2018}{2}
+\bibcite{zhong2020}{3}
+\bibcite{varoquaux2017}{4}
+\bibcite{roberts2017}{5}
+\bibcite{saeb2017}{6}
+\bibcite{zheng2015}{7}
+\bibcite{deeplearning_eeg}{8}
+\bibcite{lotte2018}{9}
+\bibcite{lachaux1999}{10}
+\bibcite{canolty2010}{11}
+\bibcite{shi2013}{12}
+\bibcite{allen2004}{13}
+\@writefile{toc}{\contentsline {section}{References}{5}{section*.2}\protected@file@percent }
+\gdef \@abspage@last{5}

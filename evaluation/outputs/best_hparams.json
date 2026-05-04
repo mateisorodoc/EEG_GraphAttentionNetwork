@@ -1,0 +1,17 @@
+{
+  "backbone_dims": [
+    96,
+    96
+  ],
+  "num_heads": 4,
+  "attn_dropout": 0.2676368515260866,
+  "head_dense": 64,
+  "head_dropout": 0.1145840283792039,
+  "lr": 0.0035551035856409914,
+  "weight_decay": 0.0014494340036069068,
+  "batch_size": 128,
+  "label_smoothing": 0.1239080655347977,
+  "input_noise_std": 0.05009733526972601,
+  "epochs": 200,
+  "patience": 20
+}

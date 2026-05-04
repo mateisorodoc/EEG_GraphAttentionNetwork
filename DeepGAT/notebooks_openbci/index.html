@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hypercortex BCI — OpenBCI Live</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0070f3; --primary-hover: #0051a8;
+            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            --card-bg: #ffffff; --text-main: #2d3748; --text-muted: #718096;
+            --border-color: #e2e8f0; --success: #38a169; --danger: #e53e3e;
+            --warning: #d69e2e; --info: #3182ce; --metric-bg: #f8fafc;
+            --badge-bg: #ffffff; --btn-bg: transparent; --btn-hover: #ffffff;
+            --app-title-gradient: linear-gradient(90deg, #2d3748, #718096);
+            --osc-bg: #f8fafc; --osc-border: #e2e8f0;
+            --osc-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
+        }
+        body.dark-mode {
+            --primary: #3182ce; --primary-hover: #63b3ed;
+            --bg-gradient: linear-gradient(135deg, #111827 0%, #1a202c 100%);
+            --card-bg: #2d3748; --text-main: #f7fafc; --text-muted: #a0aec0;
+            --border-color: #4a5568; --metric-bg: #1a202c; --badge-bg: #1a202c;
+            --btn-bg: #4a5568; --btn-hover: #2d3748;
+            --app-title-gradient: linear-gradient(90deg, #f7fafc, #a0aec0);
+            --osc-bg: #0f172a; --osc-border: #1e293b;
+            --osc-shadow: inset 0 2px 20px rgba(0,0,0,0.2);
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; margin: 0; padding: 30px 20px;
+            transition: background 0.3s, color 0.3s;
+        }
+        .app-header {
+            width: 100%; max-width: 1400px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 30px; padding: 0 10px;
+        }
+        .app-title {
+            font-size: 1.8rem; font-weight: 700; letter-spacing: -0.5px; margin: 0;
+            background: var(--app-title-gradient);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .header-controls {
+            display: flex; align-items: center; gap: 10px;
+            flex-wrap: wrap; justify-content: flex-end;
+        }
+        .theme-btn {
+            background: var(--card-bg); color: var(--text-main);
+            border: 1px solid var(--border-color); padding: 8px 14px;
+            border-radius: 30px; font-size: 0.9rem; font-weight: 600;
+            cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: all 0.2s; outline: none;
+        }
+        .theme-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .status-badge {
+            display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+            border-radius: 30px; font-size: 0.9rem; font-weight: 600;
+            background: var(--badge-bg); box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .connected    .status-dot { background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse-green 2s infinite; }
+        .disconnected .status-dot { background: var(--danger);  box-shadow: 0 0 8px var(--danger); }
+        @keyframes pulse-green {
+            0%   { transform: scale(0.95); box-shadow: 0 0 0 0   rgba(56,161,105,0.7); }
+            70%  { transform: scale(1);    box-shadow: 0 0 0 6px rgba(56,161,105,0);   }
+            100% { transform: scale(0.95); }
+        }
+
+        /* Layout */
+        .main-container {
+            display: flex; flex-wrap: wrap; gap: 25px; justify-content: center;
+            max-width: 1400px; width: 100%; align-items: flex-start;
+        }
+        .card {
+            background: var(--card-bg); padding: 2.5rem; border-radius: 24px;
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08);
+            border: 1px solid var(--border-color);
+            text-align: center; flex: 1; min-width: 350px;
+            transition: background 0.3s, border-color 0.3s;
+        }
+        .wheel-card    { flex: 0 0 420px; max-width: 420px; }
+        .controls-card { flex: 0 0 360px; max-width: 360px; text-align: left; }
+        h2 { font-size: 1.25rem; margin-top: 0; margin-bottom: 20px; font-weight: 600; color: var(--text-main); }
+        #wheelCanvas { max-width: 100%; height: auto; margin: 10px 0; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.05)); }
+
+        /* Model selector */
+        .section-label {
+            font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1px; color: var(--text-muted); margin-bottom: 8px;
+        }
+        .model-selector { display: flex; gap: 8px; margin-bottom: 16px; }
+        .model-btn {
+            flex: 1; padding: 10px 12px;
+            background: var(--metric-bg); border: 2px solid var(--border-color);
+            border-radius: 10px; color: var(--text-muted);
+            font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.2s;
+        }
+        .model-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .model-btn.active {
+            border-color: var(--primary); background: var(--primary);
+            color: #fff; box-shadow: 0 4px 14px rgba(0,112,243,0.3);
+        }
+
+        /* Stream buttons */
+        .stream-btns { display: flex; gap: 8px; margin-bottom: 20px; }
+        .play-btn {
+            flex: 1; background: var(--success); color: white; border: none;
+            padding: 12px 20px; border-radius: 12px; font-weight: 700;
+            cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 4px 14px rgba(56,161,105,0.3); font-size: 0.95rem;
+        }
+        .play-btn:hover  { background: #2f855a; transform: translateY(-1px); }
+        .play-btn:active { transform: translateY(1px); }
+        .stop-btn {
+            flex: 1; background: var(--danger); color: white; border: none;
+            padding: 12px 20px; border-radius: 12px; font-weight: 700;
+            cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 4px 14px rgba(229,62,62,0.3); font-size: 0.95rem;
+        }
+        .stop-btn:hover  { background: #c53030; transform: translateY(-1px); }
+        .play-btn:disabled, .stop-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        /* Info panel */
+        .info-panel {
+            background: var(--metric-bg); border-radius: 12px;
+            border: 1px solid var(--border-color); padding: 14px; margin-bottom: 16px;
+        }
+        .info-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; }
+        .info-label { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
+        .info-value { color: var(--primary); font-weight: 700; font-size: 0.85rem; }
+
+        /* Metrics */
+        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .metric-box {
+            background: var(--metric-bg); padding: 15px; border-radius: 16px;
+            border: 1px solid var(--border-color); text-align: left;
+            transition: background 0.3s, border-color 0.3s;
+        }
+        .metric-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+        .metric-label  { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .metric-value  { font-size: 1.4rem; font-weight: 700; color: var(--text-main); }
+        .progress-bg   { height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s, background-color 0.4s; }
+
+        #current-emotion {
+            margin-top: 15px; font-size: 1.4rem; font-weight: 700;
+            min-height: 1.8em; display: flex; align-items: center; justify-content: center;
+            padding: 10px; background: var(--metric-bg); border-radius: 16px;
+            border: 2px solid var(--primary);
+            transition: background 0.3s, border-color 0.3s, color 0.3s;
+            box-shadow: 0 4px 15px rgba(0,112,243,0.15);
+        }
+
+        /* Oscilloscope */
+        .signal-container { display: none; flex-direction: column; flex: 2; min-width: 600px; }
+        .signal-container.visible { display: flex; }
+        canvas#signalCanvas {
+            width: 100%; height: 580px; background: var(--osc-bg);
+            border-radius: 12px; border: 1px solid var(--osc-border);
+            cursor: crosshair; margin-top: 5px; box-shadow: var(--osc-shadow);
+            transition: background 0.3s, border-color 0.3s;
+        }
+        .controls-header { display: flex; justify-content: space-between; align-items: center; }
+        .timebase-controls {
+            display: flex; gap: 8px; background: var(--metric-bg);
+            padding: 4px; border-radius: 8px; border: 1px solid var(--border-color);
+        }
+        .ctrl-btn {
+            padding: 6px 14px; border: none; background: var(--btn-bg);
+            border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+            font-weight: 600; color: var(--text-muted); transition: all 0.2s;
+        }
+        .ctrl-btn.active, .ctrl-btn:hover {
+            background: var(--card-bg); color: var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .toggle-btn {
+            background: var(--primary); color: white; border: none;
+            padding: 14px 24px; border-radius: 12px; cursor: pointer;
+            font-size: 1rem; font-weight: 600; transition: all 0.2s;
+            margin-top: 25px; width: 100%;
+            box-shadow: 0 4px 14px rgba(0,112,243,0.3);
+        }
+        .toggle-btn:hover  { background: var(--primary-hover); transform: translateY(-1px); }
+        .toggle-btn.active { background: var(--border-color); color: var(--text-main); box-shadow: none; }
+        .toggle-btn.active:hover { background: var(--text-muted); color: white; }
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <h1 class="app-title">Hypercortex BCI — OpenBCI Live</h1>
+    <div class="header-controls">
+        <button id="theme-toggle" class="theme-btn">🌙</button>
+        <div id="status" class="status-badge disconnected">
+            <div class="status-dot"></div>
+            <span id="status-text">Disconnected</span>
+        </div>
+    </div>
+</header>
+
+<div class="main-container">
+
+    <!-- LEFT: Emotion Wheel -->
+    <div class="card wheel-card">
+        <h2>Emotion Space (DeepGAT)</h2>
+        <div style="position:relative;display:inline-block;">
+            <canvas id="wheelCanvas" width="360" height="360"></canvas>
+        </div>
+
+        <div id="current-emotion">Waiting for stream&hellip;</div>
+
+        <div class="metrics-grid">
+            <div class="metric-box">
+                <div class="metric-header">
+                    <span class="metric-label">Valence</span>
+                    <span class="metric-value" id="val-display">0.50</span>
+                </div>
+                <div class="progress-bg">
+                    <div class="progress-fill" id="val-bar" style="width:50%;background:var(--info);"></div>
+                </div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-header">
+                    <span class="metric-label">Arousal</span>
+                    <span class="metric-value" id="aro-display">0.50</span>
+                </div>
+                <div class="progress-bg">
+                    <div class="progress-fill" id="aro-bar" style="width:50%;background:var(--danger);"></div>
+                </div>
+            </div>
+        </div>
+
+        <button class="toggle-btn" onclick="toggleSignals()">
+            <span id="toggle-icon">📊</span>
+            <span id="toggle-text"> Show EEG Oscilloscope (16 ch)</span>
+        </button>
+    </div>
+
+    <!-- MIDDLE: Controls -->
+    <div class="card controls-card">
+        <h2>Session Controls</h2>
+
+        <div class="info-panel">
+            <div class="section-label">Model Selection</div>
+            <div class="model-selector">
+                <button class="model-btn active" data-model="gat">GAT</button>
+                <button class="model-btn" data-model="svm">SVM</button>
+                <button class="model-btn" data-model="mlp">MLP</button>
+            </div>
+        </div>
+
+        <div class="stream-btns">
+            <button class="play-btn" id="btnStart">&#9654; Start</button>
+            <button class="stop-btn" id="btnStop" disabled>&#9632; Stop</button>
+        </div>
+
+        <div class="info-panel">
+            <div class="info-row">
+                <span class="info-label">Active Model</span>
+                <span class="info-value" id="infoModel">GAT</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Predictions</span>
+                <span class="info-value" id="infoPreds">0</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Duration</span>
+                <span class="info-value" id="infoDuration">0:00</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Sample Rate</span>
+                <span class="info-value">125 Hz</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Channels</span>
+                <span class="info-value">16 (Cyton+Daisy)</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Window</span>
+                <span class="info-value">2.0 s / 250 pts</span>
+            </div>
+        </div>
+
+        <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.7;padding:0 2px;">
+            <strong style="color:var(--text-main);">How to use:</strong><br>
+            1. Run <code>streamer_openbci.ipynb</code><br>
+            2. Run <code>inference_openbci.ipynb</code><br>
+            3. Press <strong>Start</strong> to begin streaming.
+        </div>
+    </div>
+
+    <!-- RIGHT: Oscilloscope (hidden by default) -->
+    <div class="card signal-container" id="signalPanel">
+        <div class="controls-header">
+            <h2>EEG Oscilloscope (Filtered 4–45 Hz)</h2>
+            <div class="timebase-controls">
+                <button class="ctrl-btn" id="tb-5"  onclick="changeTimebase(5)">5 s</button>
+                <button class="ctrl-btn active" id="tb-10" onclick="changeTimebase(10)">10 s</button>
+                <button class="ctrl-btn" id="tb-30" onclick="changeTimebase(30)">30 s</button>
+            </div>
+        </div>
+        <canvas id="signalCanvas"></canvas>
+        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-top:8px;font-weight:600;text-transform:uppercase;">
+            <span>&larr; Signal History</span>
+            <span>Live (Now) &rarr;</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════════════
+const WS_URL      = 'ws://localhost:65432';
+const NUM_CH      = 16;
+const SAMPLE_RATE = 125;
+const CH_NAMES    = ['Fp1','Fp2','C3','C4','P7','P8','O1','O2',
+                     'F7','F8','F3','F4','T7','T8','P3','P4'];
+
+// ═══════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════
+let ws              = null;
+let activeModel     = 'gat';
+let predCount       = 0;
+let startTime       = null;
+let durationTimer   = null;
+let isSignalVisible = false;
+let WINDOW_SECONDS  = 10;
+const MAX_BUF       = 30 * SAMPLE_RATE;
+let signalBuffer    = Array.from({length: NUM_CH}, () => []);
+
+// Smooth animation
+let targetValence  = 0.5, targetArousal  = 0.5;
+let currentValence = 0.5, currentArousal = 0.5;
+
+// ═══════════════════════════════════════════════════════════════════════
+// THEME TOGGLE
+// ═══════════════════════════════════════════════════════════════════════
+const themeBtn = document.getElementById('theme-toggle');
+if (localStorage.getItem('theme') === 'dark') {
+    document.body.classList.add('dark-mode');
+    themeBtn.textContent = '☀️';
+}
+themeBtn.addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    themeBtn.textContent = isDark ? '☀️' : '🌙';
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    drawWheel();
+    if (isSignalVisible) drawOscilloscope();
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════════════════════════
+function connect() {
+    try { ws = new WebSocket(WS_URL); }
+    catch(e) { setTimeout(connect, 3000); return; }
+
+    ws.onopen = () => {
+        document.getElementById('status-text').textContent = 'Connected';
+        document.getElementById('status').className = 'status-badge connected';
+    };
+    ws.onclose = () => {
+        document.getElementById('status-text').textContent = 'Disconnected';
+        document.getElementById('status').className = 'status-badge disconnected';
+        setTimeout(connect, 2000);
+    };
+    ws.onerror = () => {};
+    ws.onmessage = (e) => {
+        try { handleMessage(JSON.parse(e.data)); } catch(_) {}
+    };
+}
+
+function handleMessage(msg) {
+    if (msg.type === 'prediction') {
+        targetArousal = msg.arousal;
+        targetValence = msg.valence;
+        predCount++;
+        document.getElementById('infoPreds').textContent = predCount;
+        updateEmotionUI(msg.arousal, msg.valence);
+    }
+    else if (msg.type === 'signal') {
+        const channels = msg.data;
+        for (let ch = 0; ch < NUM_CH; ch++) {
+            for (const v of channels[ch]) signalBuffer[ch].push(v);
+            if (signalBuffer[ch].length > MAX_BUF)
+                signalBuffer[ch] = signalBuffer[ch].slice(signalBuffer[ch].length - MAX_BUF);
+        }
+    }
+    else if (msg.type === 'model_changed') {
+        activeModel = msg.model;
+        updateModelButtons();
+        document.getElementById('infoModel').textContent = msg.model.toUpperCase();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CONTROLS
+// ═══════════════════════════════════════════════════════════════════════
+document.querySelectorAll('.model-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const model = btn.dataset.model;
+        if (ws && ws.readyState === WebSocket.OPEN)
+            ws.send(JSON.stringify({type: 'cmd_change_model', model}));
+        activeModel = model;
+        updateModelButtons();
+        document.getElementById('infoModel').textContent = model.toUpperCase();
+    });
+});
+
+function updateModelButtons() {
+    document.querySelectorAll('.model-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.model === activeModel));
+}
+
+document.getElementById('btnStart').addEventListener('click', () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected to inference server!'); return; }
+    ws.send(JSON.stringify({type: 'cmd_start_stream'}));
+    predCount = 0;
+    targetArousal = targetValence = 0.5;
+    for (let i = 0; i < NUM_CH; i++) signalBuffer[i] = [];
+    document.getElementById('infoPreds').textContent   = '0';
+    document.getElementById('infoDuration').textContent = '0:00';
+    document.getElementById('current-emotion').textContent    = 'Streaming\u2026';
+    document.getElementById('current-emotion').style.color       = '';
+    document.getElementById('current-emotion').style.borderColor = '';
+    startTime = Date.now();
+    clearInterval(durationTimer);
+    durationTimer = setInterval(updateDuration, 1000);
+    document.getElementById('btnStart').disabled = true;
+    document.getElementById('btnStop').disabled  = false;
+});
+
+document.getElementById('btnStop').addEventListener('click', () => {
+    if (ws && ws.readyState === WebSocket.OPEN)
+        ws.send(JSON.stringify({type: 'cmd_pause_stream'}));
+    clearInterval(durationTimer);
+    document.getElementById('btnStart').disabled = false;
+    document.getElementById('btnStop').disabled  = true;
+});
+
+function updateDuration() {
+    if (!startTime) return;
+    const s = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('infoDuration').textContent =
+        `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EMOTION UI
+// ═══════════════════════════════════════════════════════════════════════
+function getEmotionLabel(aro, val) {
+    if (aro >= 0.5 && val >= 0.5) return {txt: 'HAPPY',    col: 'var(--warning)'};
+    if (aro >= 0.5 && val  < 0.5) return {txt: 'STRESSED', col: 'var(--danger)' };
+    if (aro  < 0.5 && val >= 0.5) return {txt: 'CALM',     col: 'var(--success)'};
+    return                               {txt: 'SAD',       col: 'var(--info)'   };
+}
+
+function updateEmotionUI(aro, val) {
+    const emo = getEmotionLabel(aro, val);
+    const el  = document.getElementById('current-emotion');
+    el.textContent        = emo.txt + '  (' + activeModel.toUpperCase() + ')';
+    el.style.color        = emo.col;
+    el.style.borderColor  = emo.col;
+
+    document.getElementById('val-display').textContent = val.toFixed(2);
+    document.getElementById('aro-display').textContent = aro.toFixed(2);
+    document.getElementById('val-bar').style.width           = `${val * 100}%`;
+    document.getElementById('val-bar').style.backgroundColor = val >= 0.5 ? 'var(--warning)' : 'var(--info)';
+    document.getElementById('aro-bar').style.width           = `${aro * 100}%`;
+    document.getElementById('aro-bar').style.backgroundColor = aro >= 0.5 ? 'var(--danger)' : 'var(--success)';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// EMOTION WHEEL  (quadrant pie with active highlighting + ball)
+// ═══════════════════════════════════════════════════════════════════════
+const wCanvas = document.getElementById('wheelCanvas');
+const wCtx    = wCanvas.getContext('2d');
+const WW = wCanvas.width, WH = wCanvas.height;
+const WCX = WW / 2, WCY = WH / 2;
+const WRAD = WW / 2 - 12;
+
+function getWheelColors() {
+    const dark = document.body.classList.contains('dark-mode');
+    return dark
+        ? { q1: '#4d4825', q2: '#542a2a', q3: '#2a3b54', q4: '#2a4c3b',
+            active: {q1: '#ecc94b', q2: '#e53e3e', q3: '#3182ce', q4: '#38a169'} }
+        : { q1: '#fef9c3', q2: '#fed7d7', q3: '#e2e8f0', q4: '#c6f6d5',
+            active: {q1: '#ecc94b', q2: '#e53e3e', q3: '#3182ce', q4: '#38a169'} };
+}
+
+function drawWheel() {
+    const highA = currentArousal >= 0.5;
+    const posV  = currentValence  >= 0.5;
+    const c     = getWheelColors();
+    const dark  = document.body.classList.contains('dark-mode');
+
+    wCtx.clearRect(0, 0, WW, WH);
+
+    // Q1 top-right    = HAPPY    (highA, posV)
+    wCtx.beginPath(); wCtx.moveTo(WCX, WCY);
+    wCtx.arc(WCX, WCY, WRAD, -Math.PI / 2, 0);
+    wCtx.fillStyle = (highA && posV)   ? c.active.q1 : c.q1; wCtx.fill();
+
+    // Q2 top-left     = STRESSED (highA, !posV)
+    wCtx.beginPath(); wCtx.moveTo(WCX, WCY);
+    wCtx.arc(WCX, WCY, WRAD, -Math.PI, -Math.PI / 2);
+    wCtx.fillStyle = (highA && !posV)  ? c.active.q2 : c.q2; wCtx.fill();
+
+    // Q3 bottom-left  = SAD      (!highA, !posV)
+    wCtx.beginPath(); wCtx.moveTo(WCX, WCY);
+    wCtx.arc(WCX, WCY, WRAD, Math.PI / 2, Math.PI);
+    wCtx.fillStyle = (!highA && !posV) ? c.active.q3 : c.q3; wCtx.fill();
+
+    // Q4 bottom-right = CALM     (!highA, posV)
+    wCtx.beginPath(); wCtx.moveTo(WCX, WCY);
+    wCtx.arc(WCX, WCY, WRAD, 0, Math.PI / 2);
+    wCtx.fillStyle = (!highA && posV)  ? c.active.q4 : c.q4; wCtx.fill();
+
+    // Axes
+    wCtx.strokeStyle = dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.05)';
+    wCtx.lineWidth = 3;
+    wCtx.beginPath(); wCtx.moveTo(WCX, 10);      wCtx.lineTo(WCX, WH - 10); wCtx.stroke();
+    wCtx.beginPath(); wCtx.moveTo(10,  WCY);     wCtx.lineTo(WW - 10, WCY); wCtx.stroke();
+
+    // Quadrant labels
+    wCtx.font      = 'bold 13px Inter';
+    wCtx.fillStyle = dark ? '#f7fafc' : '#2d3748';
+    wCtx.textAlign = 'center';
+    wCtx.fillText('HAPPY',    WCX + WRAD / 2, WCY - WRAD / 2);
+    wCtx.fillText('STRESSED', WCX - WRAD / 2, WCY - WRAD / 2);
+    wCtx.fillText('SAD',      WCX - WRAD / 2, WCY + WRAD / 2);
+    wCtx.fillText('CALM',     WCX + WRAD / 2, WCY + WRAD / 2);
+
+    // Axis labels
+    wCtx.font      = '600 10px Inter';
+    wCtx.fillStyle = dark ? '#a0aec0' : '#718096';
+    wCtx.fillText('VALENCE (+)', WW - 48, WCY + 15);
+    wCtx.fillText('AROUSAL (+)', WCX + 42,       20);
+
+    // Ball — map valence→X, arousal→Y
+    let relX = (currentValence - 0.5) * 2;
+    let relY = (currentArousal - 0.5) * 2;
+    const dist = Math.sqrt(relX * relX + relY * relY);
+    if (dist > 1.0) { relX /= dist; relY /= dist; }
+    const bx = WCX + relX * (WRAD - 15);
+    const by = WCY - relY * (WRAD - 15);
+
+    // Drop shadow
+    wCtx.beginPath(); wCtx.arc(bx, by + 2, 12, 0, 2 * Math.PI);
+    wCtx.fillStyle = dark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.15)';
+    wCtx.fill();
+
+    // Solid ball
+    wCtx.beginPath(); wCtx.arc(bx, by, 9, 0, 2 * Math.PI);
+    wCtx.fillStyle   = dark ? '#e2e8f0' : '#1a202c';
+    wCtx.fill();
+    wCtx.strokeStyle = dark ? '#2d3748' : '#ffffff';
+    wCtx.lineWidth   = 2.5;
+    wCtx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// OSCILLOSCOPE
+// ═══════════════════════════════════════════════════════════════════════
+const sCanvas = document.getElementById('signalCanvas');
+const sCtx    = sCanvas.getContext('2d');
+const LABEL_MARGIN = 38;
+const SIGNAL_SCALE = 0.12;
+
+function resizeSignalCanvas() {
+    const rect = sCanvas.getBoundingClientRect();
+    sCanvas.width  = rect.width  * window.devicePixelRatio;
+    sCanvas.height = rect.height * window.devicePixelRatio;
+    sCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    if (isSignalVisible) drawOscilloscope();
+}
+window.addEventListener('resize', resizeSignalCanvas);
+
+function getOscColors() {
+    return document.body.classList.contains('dark-mode')
+        ? {gridLine: '#1e293b', textColor: '#94a3b8', signalLine: '#38bdf8'}
+        : {gridLine: '#e2e8f0', textColor: '#64748b', signalLine: '#2563eb'};
+}
+
+function drawOscilloscope() {
+    if (!isSignalVisible) return;
+    const w  = sCanvas.getBoundingClientRect().width;
+    const h  = sCanvas.getBoundingClientRect().height;
+    sCtx.clearRect(0, 0, w, h);
+
+    const chH   = h / NUM_CH;
+    const pts   = WINDOW_SECONDS * SAMPLE_RATE;
+    const drawW = w - LABEL_MARGIN;
+    const oc    = getOscColors();
+
+    sCtx.lineWidth = 1;
+    sCtx.font      = '600 10px Inter';
+    sCtx.textBaseline = 'middle';
+
+    for (let ch = 0; ch < NUM_CH; ch++) {
+        const yTop    = ch * chH;
+        const yCenter = yTop + chH / 2;
+        sCtx.strokeStyle = oc.gridLine;
+        sCtx.setLineDash([]);
+        sCtx.beginPath(); sCtx.moveTo(0, yTop); sCtx.lineTo(w, yTop); sCtx.stroke();
+        sCtx.setLineDash([4, 4]);
+        sCtx.beginPath(); sCtx.moveTo(LABEL_MARGIN, yCenter); sCtx.lineTo(w, yCenter); sCtx.stroke();
+        sCtx.setLineDash([]);
+        sCtx.fillStyle = oc.textColor; sCtx.textAlign = 'left';
+        sCtx.fillText(CH_NAMES[ch], 4, yCenter);
+    }
+
+    sCtx.textAlign = 'center'; sCtx.fillStyle = oc.textColor;
+    for (let t = 0; t <= WINDOW_SECONDS; t++) {
+        const x = w - (t * (drawW / WINDOW_SECONDS));
+        if (x >= LABEL_MARGIN) {
+            sCtx.strokeStyle = oc.gridLine;
+            sCtx.beginPath(); sCtx.moveTo(x, 0); sCtx.lineTo(x, h); sCtx.stroke();
+            if (t > 0 && t < WINDOW_SECONDS) sCtx.fillText(`-${t}s`, x, h - 10);
+        }
+    }
+
+    sCtx.lineWidth = 1.5; sCtx.lineJoin = 'round'; sCtx.lineCap = 'round';
+    for (let ch = 0; ch < NUM_CH; ch++) {
+        const data = signalBuffer[ch], len = data.length;
+        if (len < 2) continue;
+        const yCenter = ch * chH + chH / 2;
+        sCtx.save();
+        sCtx.beginPath(); sCtx.rect(LABEL_MARGIN, ch * chH, drawW, chH); sCtx.clip();
+        sCtx.strokeStyle = oc.signalLine;
+        sCtx.beginPath();
+        let started = false;
+        for (let i = 0; i < pts; i++) {
+            const idx = len - 1 - i;
+            if (idx < 0) break;
+            const x = w - (i / pts) * drawW;
+            const y = yCenter - data[idx] * SIGNAL_SCALE;
+            if (!started) { sCtx.moveTo(x, y); started = true; } else sCtx.lineTo(x, y);
+        }
+        sCtx.stroke();
+        sCtx.restore();
+    }
+}
+
+function changeTimebase(s) {
+    WINDOW_SECONDS = s;
+    document.querySelectorAll('.timebase-controls .ctrl-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`tb-${s}`).classList.add('active');
+    if (isSignalVisible) drawOscilloscope();
+}
+
+function toggleSignals() {
+    isSignalVisible = !isSignalVisible;
+    document.getElementById('signalPanel').classList.toggle('visible', isSignalVisible);
+    document.querySelector('.toggle-btn').classList.toggle('active', isSignalVisible);
+    document.getElementById('toggle-icon').textContent = isSignalVisible ? '📉' : '📊';
+    document.getElementById('toggle-text').textContent = isSignalVisible
+        ? ' Hide Oscilloscope' : ' Show EEG Oscilloscope (16 ch)';
+    if (isSignalVisible) setTimeout(resizeSignalCanvas, 50);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANIMATION LOOP
+// ═══════════════════════════════════════════════════════════════════════
+function animate() {
+    currentValence += (targetValence - currentValence) * 0.08;
+    currentArousal += (targetArousal - currentArousal) * 0.08;
+    drawWheel();
+    if (isSignalVisible) drawOscilloscope();
+    requestAnimationFrame(animate);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+drawWheel();
+connect();
+animate();
+</script>
+</body>
+</html>
