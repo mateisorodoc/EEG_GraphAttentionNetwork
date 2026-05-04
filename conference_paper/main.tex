@@ -112,11 +112,11 @@ We extract 26 features per channel (832 total for 32 channels):
 \begin{itemize}
     \item \textbf{Spectral}: Band Power (5 bands: $\theta$ 4--8\,Hz, $\alpha$ 8--12\,Hz, $\beta_\mathrm{L}$ 12--16\,Hz, $\beta_\mathrm{H}$ 16--25\,Hz, $\gamma$ 25--45\,Hz) and Differential Entropy (same bands)~\cite{shi2013}
     \item \textbf{Connectivity}: Phase-Locking Value (PLV~\cite{lachaux1999}; 5 bands) and Coherence (5 bands), computed as mean connectivity per channel across all pairs
-    \item \textbf{Cross-frequency}: Phase-Amplitude Coupling (PAC~\cite{canolty2010}; 1 coupling: $\theta$ phase to $\gamma$ amplitude, Modulation Index; only $\theta$--$\gamma$ is computed)
+    \item \textbf{Cross-frequency}: Phase-Amplitude Coupling (PAC~\cite{canolty2010}; 1 coupling: $\theta$ phase to $\gamma$ amplitude, Modulation Index)
     \item \textbf{Temporal}: Band-power temporal variability (variance of BP across 4 sub-windows per band; 5 bands)
 \end{itemize}
 
-Delta (1--4\,Hz) is omitted in this pipeline (bands start at 4\,Hz). This yields 10 spectral + 10 connectivity + 1 PAC + 5 temporal = 26 features per channel. Temporal features are computed as band-power variance (Hjorth parameters are not used).
+Delta (1--4\,Hz) is omitted in this pipeline (bands start at 4\,Hz). This yields 10 spectral (5 BP + 5 DE) + 10 connectivity (5 PLV + 5 coherence) + 1 PAC + 5 temporal = 26 features per channel. Temporal features are computed as band-power variance (Hjorth parameters are not used).
 
 Windows of $W = 256$ samples (2\,s) with step $S = 128$ (50\% overlap) are used for Tiers~1--3. Tier~0 uses $S = 16$ (93.75\% overlap).
 
@@ -226,7 +226,7 @@ Under Tier~1 (leaky evaluation), architectures differ substantially (MLP: 0.920 
 
 \subsection{Statistical Significance}
 
-A paired $t$-test comparing Tier~1 and Tier~2 F1 scores across 20 subjects for the 32ch/26feat GAT yields $t(19) = 17.02$, $p < 0.0001$, Cohen's $d = 3.81$ (very large effect). The 95\% confidence interval for the Tier~1 minus Tier~2 difference is [0.184, 0.235].
+A paired $t$-test comparing Tier~1 and Tier~2 F1 scores across 20 subjects for the 32ch/26feat GAT yields $t(19) = 17.02$, $p < 0.0001$, Cohen's $d = 3.81$ (very large effect). The mean Tier~1 minus Tier~2 difference is 0.209 (95\% CI [0.184, 0.235]).
 
 Upgrading from 16 to 32 channels improves cross-subject generalization (Tier~3): from $0.504 \pm 0.152$ to $0.568 \pm 0.155$ (+12.7\% relative), suggesting that connectivity features (PLV, Coherence) provide subject-invariant information that pure spectral power lacks.
 
