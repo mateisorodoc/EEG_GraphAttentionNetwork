@@ -25,7 +25,7 @@ sorodoc.a.matei@student.utcluj.ro}}
 \maketitle
 
 \begin{abstract}
-EEG-based emotion recognition studies frequently report classification accuracies exceeding 85--95\% on benchmark datasets, yet these results often rely on evaluation protocols that violate sample independence assumptions. We propose a four-tier evaluation framework that systematically quantifies how evaluation methodology inflates reported performance. Using the DEAP dataset (20 subjects, 32 EEG channels, binary arousal/valence) and a Graph Attention Network (GAT) with 26 spectral-connectivity features, we demonstrate that evaluation protocol selection inflates macro F1 scores by up to 30.6 percentage points (Tier~0: 0.864 vs.\ Tier~2: 0.558; Cohen's $d > 4.0$, $p < 0.001$). Under trial-aware cross-validation, all tested architectures (SVM, MLP, GAT) converge to approximately 58\% F1 (chance = 50\%), indicating that model architecture is not the primary performance determinant among those evaluated. Extending from 16 to 32 channels with connectivity features (PLV, coherence) yields a modest improvement in cross-subject generalization (+12.7\%). A preliminary within-subject experiment on a custom OpenBCI dataset (n=1) achieves 95.1\% F1 (4-class, trial-aware), providing initial evidence that personalized EEG-BCI may remain viable when inter-individual variability is eliminated, though multi-subject replication is needed. We recommend that future EEG-BCI studies report results under at least trial-aware evaluation (our Tier~2) as the minimum standard for meaningful performance claims.
+EEG-based emotion recognition studies frequently report classification accuracies exceeding 85--95\% on benchmark datasets, yet these results often rely on evaluation protocols that violate sample independence assumptions. We propose a four-tier evaluation framework that systematically quantifies how evaluation methodology inflates reported performance. Using the DEAP dataset (20 subjects, 32 EEG channels, binary arousal/valence) and a Graph Attention Network (GAT) with 26 spectral-connectivity features, we show that evaluation protocol selection, combined with a legacy 16ch/10feat pipeline, inflates macro F1 scores by up to 30.6 percentage points (Tier~0: 0.864 with 16ch/10feat, step=16 vs.\ Tier~2: 0.558 with 32ch/26feat, step=128). For a matched 16-channel GAT comparison (10 features), Tier~1 to Tier~2 alone drops 28.7 points. Under trial-aware cross-validation, all tested architectures (SVM, MLP, GAT) converge to approximately 58\% F1 (chance = 50\%), indicating that model architecture is not the primary performance determinant among those evaluated. Extending from 16 to 32 channels with connectivity features (PLV, coherence) yields a modest improvement in cross-subject generalization (+12.7\%). A preliminary within-subject experiment on a custom OpenBCI dataset (n=1) achieves 95.1\% F1 (4-class, trial-aware), providing initial evidence that personalized EEG-BCI may remain viable when inter-individual variability is eliminated, though multi-subject replication is needed. We recommend that future EEG-BCI studies report results under at least trial-aware evaluation (our Tier~2) as the minimum standard for meaningful performance claims.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -41,7 +41,7 @@ The core issue is \emph{trial leakage}: when EEG signals are segmented into over
 This paper makes three contributions:
 \begin{enumerate}
     \item A \textbf{four-tier evaluation framework} that decomposes EEG classification performance into progressively rigorous protocols, enabling precise quantification of leakage inflation.
-    \item \textbf{Empirical evidence} that evaluation protocol selection accounts for a 30.6-point F1 inflation on DEAP---more than any architectural or feature engineering improvement.
+    \item \textbf{Empirical evidence} that evaluation protocol selection (and the legacy Tier~0 pipeline) produces a 30.6-point F1 gap on DEAP; within a matched 16-channel pipeline, Tier~1$\to$Tier~2 alone drops 28.7 points.
     \item \textbf{Architecture-invariance demonstration}: under proper trial-aware evaluation, SVM, MLP, and GAT all converge to similar near-chance performance ($\sim$58\% F1), suggesting the bottleneck lies in signal quality or evaluation design rather than model capacity.
 \end{enumerate}
 
@@ -69,7 +69,7 @@ Graph Attention Networks (GATs)~\cite{velickovic2018} naturally model EEG channe
 
 We define four evaluation tiers of increasing methodological rigor:
 
-\textbf{Tier~0 (Maximum Leakage):} All subjects are pooled. Windows are extracted with step $S = 16$ samples (93.75\% overlap at 128\,Hz). A random 80/20 train-test split is applied without respecting subject or trial boundaries. This reproduces the protocol used by many high-accuracy studies.
+\textbf{Tier~0 (Maximum Leakage):} All subjects are pooled. Windows are extracted with step $S = 16$ samples (93.75\% overlap at 128\,Hz) using the legacy 16ch/10feat pipeline. A random 80/20 train-test split is applied without respecting subject or trial boundaries. This reproduces the protocol used by many high-accuracy studies.
 
 \textbf{Tier~1 (Within-Subject, Leaky):} Per-subject 10-fold StratifiedKFold with step $S = 128$ (50\% overlap). Trial boundaries are not enforced, so windows from the same trial may appear in different folds.
 
@@ -95,11 +95,11 @@ The DeepGAT model treats EEG channels as nodes in a fully-connected graph, learn
 \toprule
 \textbf{Component} & \textbf{Configuration} & \textbf{Parameters} \\
 \midrule
-GAT Backbone & 2 layers, dim=96, heads=4 & $\sim$85K \\
+GAT Backbone & 2 layers, dim=96, heads=4 & $\sim$78K \\
 Channel Embed. & Learnable, $32 \times 96$ & 3K \\
 Task Heads & Dense($96 \to 64 \to 1$) $\times$ 2 & $\sim$13K \\
 \midrule
-\textbf{Total} & End-to-end differentiable & $\sim$100K \\
+\textbf{Total} & End-to-end differentiable & $\sim$94K \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -110,10 +110,10 @@ Hyperparameters were optimized using Optuna (TPE sampler, 150 trials, 6.1\,h) wi
 
 We extract 26 features per channel (832 total for 32 channels):
 \begin{itemize}
-    \item \textbf{Spectral}: Band Power (5 bands: $\delta$, $\theta$, $\alpha$, $\beta$, $\gamma$) and Differential Entropy (5 bands)
+    \item \textbf{Spectral}: Band Power (5 bands: $\theta$ 4--8\,Hz, $\alpha$ 8--12\,Hz, $\beta_\mathrm{L}$ 12--16\,Hz, $\beta_\mathrm{H}$ 16--25\,Hz, $\gamma$ 25--45\,Hz) and Differential Entropy~\cite{shi2013} (same bands)
     \item \textbf{Connectivity}: Phase-Locking Value (PLV~\cite{lachaux1999}; 5 bands) and Coherence (5 bands), computed as mean connectivity per channel across all pairs
-    \item \textbf{Cross-frequency}: Phase-Amplitude Coupling (PAC~\cite{canolty2010}; 3 pairs: $\theta$-$\gamma$, $\alpha$-$\gamma$, $\beta$-$\gamma$)
-    \item \textbf{Temporal}: Hjorth activity, mobility, and complexity
+    \item \textbf{Cross-frequency}: Phase-Amplitude Coupling (PAC~\cite{canolty2010}; 1 coupling: $\theta$ phase to $\gamma$ amplitude, Modulation Index)
+    \item \textbf{Temporal}: Band-power temporal variability (variance of BP across 4 sub-windows per band; 5 bands)
 \end{itemize}
 
 Windows of $W = 256$ samples (2\,s) with step $S = 128$ (50\% overlap) are used for Tiers~1--3. Tier~0 uses $S = 16$ (93.75\% overlap).
@@ -148,7 +148,7 @@ All models use AdamW optimization with cosine annealing learning rate schedule. 
 
 \subsection{Main Tier Comparison}
 
-Table~\ref{tab:main} presents results across all four tiers. The dominant finding is the 30.6-point F1 gap between Tier~0 (maximum leakage) and Tier~2 (trial-aware).
+Table~\ref{tab:main} presents results across all four tiers, including a legacy Tier~0 baseline. The largest gap is 30.6 points between Tier~0 (maximum leakage) and Tier~2 (trial-aware), but this comparison conflates protocol and pipeline changes; within a matched 16ch/10feat pipeline, Tier~1$\to$Tier~2 drops 28.7 points (Table~\ref{tab:models}).
 
 \begin{table}[t]
 \centering
@@ -156,7 +156,7 @@ Table~\ref{tab:main} presents results across all four tiers. The dominant findin
 \label{tab:main}
 \begin{tabular}{llc}
 \toprule
-\textbf{Tier} & \textbf{Protocol} & \textbf{F1 (32ch GAT)} \\
+\textbf{Tier} & \textbf{Protocol} & \textbf{F1 (GAT)} \\
 \midrule
 0 & Random split, 93.75\% overlap & 0.864$^*$ \\
 1 & StratifiedKFold (within-subj.) & 0.768 $\pm$ 0.075 \\
@@ -165,9 +165,9 @@ Table~\ref{tab:main} presents results across all four tiers. The dominant findin
 \midrule
 \multicolumn{2}{l}{Chance level (binary)} & 0.500 \\
 \bottomrule
-\multicolumn{3}{l}{\footnotesize $^*$16ch/10feat config. Tier~0 uses a different feature pipeline}\\
-\multicolumn{3}{l}{\footnotesize (10 feat, step=16) incompatible with 32ch extraction; the}\\
-\multicolumn{3}{l}{\footnotesize comparison quantifies protocol effect (see Table~\ref{tab:channels}).}
+\multicolumn{3}{l}{\footnotesize $^*$Tier~0 uses a legacy 16ch/10feat pipeline (step=16), while}\\
+\multicolumn{3}{l}{\footnotesize Tiers~1--3 use 32ch/26feat (step=128); the gap conflates protocol}\\
+\multicolumn{3}{l}{\footnotesize and feature-pipeline changes (see Table~\ref{tab:channels}).}
 \end{tabular}
 \end{table}
 
@@ -186,7 +186,7 @@ Table~\ref{tab:degradation} decomposes the performance drop across tier transiti
 
 \begin{table}[t]
 \centering
-\caption{Progressive Degradation Between Tiers}
+\caption{Progressive Degradation Between Tiers (Tier~0 uses a legacy 16ch/10feat pipeline)}
 \label{tab:degradation}
 \begin{tabular}{lrl}
 \toprule
@@ -213,20 +213,20 @@ Table~\ref{tab:models} demonstrates that model choice has minimal impact under t
 \toprule
 \textbf{Tier} & \textbf{SVM} & \textbf{MLP} & \textbf{GAT} \\
 \midrule
-1 (Leaky) & 0.845 $\pm$ 0.063 & 0.928 $\pm$ 0.030 & 0.873 $\pm$ 0.044 \\
-2 (Trial-aware) & 0.593 $\pm$ 0.100 & 0.586 $\pm$ 0.090 & 0.581 $\pm$ 0.054 \\
-3 (LOSO) & 0.576 $\pm$ 0.157 & 0.556 $\pm$ 0.139 & 0.504 $\pm$ 0.147 \\
+1 (Leaky) & 0.842 $\pm$ 0.062 & 0.920 $\pm$ 0.030 & 0.867 $\pm$ 0.044 \\
+2 (Trial-aware) & 0.594 $\pm$ 0.106 & 0.587 $\pm$ 0.094 & 0.580 $\pm$ 0.055 \\
+3 (LOSO) & 0.588 $\pm$ 0.160 & 0.556 $\pm$ 0.141 & 0.504 $\pm$ 0.152 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Under Tier~1 (leaky evaluation), architectures differ substantially (MLP: 0.928 vs.\ GAT: 0.873). However, under Tier~2, all three models converge to 0.58--0.59, confirming that the performance gap observed under leaky evaluation is an artifact rather than a genuine architectural advantage.
+Under Tier~1 (leaky evaluation), architectures differ substantially (MLP: 0.920 vs.\ GAT: 0.867). However, under Tier~2, all three models converge to 0.58--0.59, confirming that the performance gap observed under leaky evaluation is an artifact rather than a genuine architectural advantage.
 
 \subsection{Statistical Significance}
 
-A paired $t$-test comparing Tier~1 and Tier~2 F1 scores across 20 subjects yields $t(19) = 10.84$, $p < 0.0001$, Cohen's $d = 2.42$ (very large effect). The 95\% confidence interval for the Tier~1 minus Tier~2 difference is [0.170, 0.250].
+A paired $t$-test comparing Tier~1 and Tier~2 F1 scores across 20 subjects for the 32ch/26feat GAT yields $t(19) = 17.02$, $p < 0.0001$, Cohen's $d = 3.81$ (very large effect). The 95\% confidence interval for the Tier~1 minus Tier~2 difference is [0.184, 0.235].
 
-Upgrading from 16 to 32 channels improves cross-subject generalization (Tier~3): from $0.504 \pm 0.147$ to $0.568 \pm 0.155$ (+12.7\% relative), suggesting that connectivity features (PLV, Coherence) provide subject-invariant information that pure spectral power lacks.
+Upgrading from 16 to 32 channels improves cross-subject generalization (Tier~3): from $0.504 \pm 0.152$ to $0.568 \pm 0.155$ (+12.7\% relative), suggesting that connectivity features (PLV, Coherence) provide subject-invariant information that pure spectral power lacks.
 
 \subsection{Within-Subject Personalized BCI}
 
@@ -244,10 +244,10 @@ Table~\ref{tab:channels} shows the impact of upgrading from 16 channels with 10 
 \toprule
 \textbf{Configuration} & \textbf{Tier 1} & \textbf{Tier 2} & \textbf{Tier 3} \\
 \midrule
-16ch / 10 feat (GAT) & 0.873 & 0.581 & 0.504 \\
+16ch / 10 feat (GAT) & 0.867 & 0.580 & 0.504 \\
 32ch / 26 feat (GAT) & 0.768 & 0.558 & 0.568 \\
 \midrule
-$\Delta$ & $-$0.105 & $-$0.023 & +0.064 \\
+$\Delta$ & $-$0.099 & $-$0.022 & +0.064 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -269,7 +269,7 @@ Fig.~\ref{fig:model_comparison} illustrates the multi-model comparison under 16-
 
 \subsection{Implications for Published Results}
 
-Our findings suggest that many published DEAP results reporting $>$80\% accuracy may inadvertently operate in what we term the Tier~0 regime---not due to methodological negligence, but because the community has lacked a standardized framework for quantifying the contribution of evaluation protocol to reported performance. The evaluation protocol alone can explain the majority of the discrepancy between high-accuracy reports and our Tier~2/3 results. Importantly, this does not invalidate the models or features proposed in those studies, but rather highlights the need for complementary evaluation under trial-aware protocols to contextualize the results.
+Our findings suggest that many published DEAP results reporting $>$80\% accuracy may inadvertently operate in what we term the Tier~0 regime---not due to methodological negligence, but because the community has lacked a standardized framework for quantifying the contribution of evaluation protocol to reported performance. Evaluation protocol differences can explain a large share of the discrepancy between high-accuracy reports and our Tier~2/3 results, even when accounting for feature-pipeline differences. Importantly, this does not invalidate the models or features proposed in those studies, but rather highlights the need for complementary evaluation under trial-aware protocols to contextualize the results.
 
 Table~\ref{tab:lit} contextualizes our results against published literature, showing that studies with proper evaluation consistently report performance in the 52--58\% range.
 
@@ -307,14 +307,14 @@ Multiple factors likely contribute to the near-chance Tier~2/3 performance:
 
 Notably, the architecture-invariance finding (Section~IV.C) was not an expected outcome; the original hypothesis was that GAT spatial modeling would outperform flat classifiers under proper evaluation. The convergence of all three architectures to near-identical Tier~2 performance motivated reframing the contribution around evaluation methodology rather than model design.
 
-This study uses 20 of 32 available DEAP subjects (sequential selection, no filtering) due to computational constraints (feature extraction: 3.6\,h for 20 subjects). The OpenBCI result (n=1) serves only as a proof-of-concept for the personalization paradigm and should not be interpreted as evidence of general within-subject viability without multi-subject replication. We evaluate only three architectures; CNN-based models (EEGNet, TSCeption), Transformer-based models (EEG Conformer), and specialized domain adaptation models may exhibit different patterns under proper evaluation. The four-tier framework does not address all sources of bias (e.g., session effects, stimulus order). Finally, PLV and Coherence are averaged per channel rather than preserved as pairwise edge weights, which may underutilize the graph structure.
+This study uses 20 of 32 available DEAP subjects (sequential selection, no filtering) due to computational constraints (feature extraction: 3.6\,h for 20 subjects). Tier~0 results come from an earlier 16ch/10feat notebook pipeline (step=16) and are not directly comparable to the 32ch/26feat tiers. The OpenBCI result (n=1) serves only as a proof-of-concept for the personalization paradigm and should not be interpreted as evidence of general within-subject viability without multi-subject replication. We evaluate only three architectures; CNN-based models (EEGNet, TSCeption), Transformer-based models (EEG Conformer), and specialized domain adaptation models may exhibit different patterns under proper evaluation. The four-tier framework does not address all sources of bias (e.g., session effects, stimulus order). Finally, PLV and Coherence are averaged per channel rather than preserved as pairwise edge weights, which may underutilize the graph structure.
 
 \section{Conclusion}
 
 We present a four-tier evaluation framework that systematically quantifies how evaluation methodology inflates EEG emotion classification performance. Our experiments on the DEAP dataset yield three principal findings:
 
 \begin{enumerate}
-    \item Evaluation protocol selection alone accounts for a \textbf{30.6 F1-point inflation} (Tier~0 = 0.864 vs.\ Tier~2 = 0.558, $p < 0.001$, Cohen's $d > 4.0$)---larger than any improvement from architecture, features, or channel count.
+    \item Evaluation protocol selection yields a large inflation in reported performance: the legacy Tier~0 vs.\ Tier~2 gap is \textbf{30.6 F1 points} (cross-configuration), while the 32ch/26feat Tier~1$\to$Tier~2 drop is 21.0 points ($t(19)=17.02$, $p < 0.0001$, $d=3.81$).
     \item Under trial-aware evaluation, \textbf{all tested architectures converge} to approximately 58\% F1 (binary, chance = 50\%), suggesting the bottleneck lies in signal quality or label ambiguity rather than model capacity.
     \item \textbf{Personalized within-subject} models show preliminary promise: 95.1\% F1 (4-class, trial-aware) on a single OpenBCI subject provides initial evidence that EEG emotion recognition may be achievable when individual variability is eliminated, pending multi-subject replication.
 \end{enumerate}
@@ -331,12 +331,6 @@ All code, trained models, and extracted features are available in our public rep
 \bibitem{koelstra2012}
 S.~Koelstra \emph{et al.}, ``DEAP: A database for emotion analysis using physiological signals,'' \emph{IEEE Trans. Affective Computing}, vol.~3, no.~1, pp.~18--31, 2012.
 
-\bibitem{velickovic2018}
-P.~Veli\v{c}kovi\'c, G.~Cucurull, A.~Casanova, A.~Romero, P.~Li\`o, and Y.~Bengio, ``Graph attention networks,'' in \emph{Proc. ICLR}, 2018.
-
-\bibitem{zhong2020}
-P.~Zhong, D.~Wang, and C.~Miao, ``EEG-based emotion recognition using regularized graph neural networks,'' \emph{IEEE Trans. Affective Computing}, vol.~11, no.~3, pp.~532--541, 2020.
-
 \bibitem{varoquaux2017}
 G.~Varoquaux \emph{et al.}, ``Assessing and tuning brain decoders: Cross-validation, caveats, and guidelines,'' \emph{NeuroImage}, vol.~145, pp.~166--179, 2017.
 
@@ -346,14 +340,17 @@ S.~Roberts \emph{et al.}, ``Cross-validation strategies for data with temporal, 
 \bibitem{saeb2017}
 S.~Saeb, L.~Lonini, A.~Jayaraman, D.~C.~Mohr, and K.~P.~Kording, ``The need to approximate the use-case in clinical machine learning,'' \emph{GigaScience}, vol.~6, no.~5, pp.~1--9, 2017.
 
-\bibitem{zheng2015}
-W.-L.~Zheng and B.-L.~Lu, ``Investigating critical frequency bands and channels for EEG-based emotion recognition with deep neural networks,'' \emph{IEEE Trans. Autonomous Mental Development}, vol.~7, no.~3, pp.~162--175, 2015.
-
 \bibitem{deeplearning_eeg}
 A.~Craik, Y.~He, and J.~L.~Contreras-Vidal, ``Deep learning for electroencephalogram (EEG) classification tasks: A review,'' \emph{J. Neural Engineering}, vol.~16, no.~3, p.~031001, 2019.
 
-\bibitem{lotte2018}
-F.~Lotte \emph{et al.}, ``A review of classification algorithms for EEG-based brain-computer interfaces: A 10 year update,'' \emph{J. Neural Engineering}, vol.~15, no.~3, p.~031005, 2018.
+\bibitem{zheng2015}
+W.-L.~Zheng and B.-L.~Lu, ``Investigating critical frequency bands and channels for EEG-based emotion recognition with deep neural networks,'' \emph{IEEE Trans. Autonomous Mental Development}, vol.~7, no.~3, pp.~162--175, 2015.
+
+\bibitem{zhong2020}
+P.~Zhong, D.~Wang, and C.~Miao, ``EEG-based emotion recognition using regularized graph neural networks,'' \emph{IEEE Trans. Affective Computing}, vol.~11, no.~3, pp.~532--541, 2020.
+
+\bibitem{velickovic2018}
+P.~Veli\v{c}kovi\'c, G.~Cucurull, A.~Casanova, A.~Romero, P.~Li\`o, and Y.~Bengio, ``Graph attention networks,'' in \emph{Proc. ICLR}, 2018.
 
 \bibitem{lachaux1999}
 J.-P.~Lachaux, E.~Rodriguez, J.~Martinerie, and F.~J.~Varela, ``Measuring phase synchrony in brain signals,'' \emph{Human Brain Mapping}, vol.~8, no.~4, pp.~194--208, 1999.
@@ -363,9 +360,6 @@ R.~T.~Canolty and R.~T.~Knight, ``The functional role of cross-frequency couplin
 
 \bibitem{shi2013}
 L.-C.~Shi, Y.-Y.~Jiao, and B.-L.~Lu, ``Differential entropy feature for EEG-based emotion recognition,'' in \emph{Proc. 7th Int. IEEE/EMBS Conf. Neural Eng.}, pp.~81--84, 2013.
-
-\bibitem{allen2004}
-J.~J.~B.~Allen, J.~A.~Coan, and M.~Nazarian, ``Issues and assumptions on the road from raw signals to metrics of frontal EEG asymmetry in emotion,'' \emph{Biological Psychology}, vol.~67, pp.~183--218, 2004.
 
 \end{thebibliography}
 
