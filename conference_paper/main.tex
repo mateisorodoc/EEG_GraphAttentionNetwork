@@ -77,6 +77,8 @@ We define four evaluation tiers of increasing methodological rigor:
 
 \textbf{Tier~3 (Cross-Subject LOSO):} Leave-One-Subject-Out. The model trains on 19 subjects and is tested on the held-out subject. This evaluates generalization across individuals.
 
+Because Tier~0 uses a legacy 16ch/10feat pipeline, comparisons between Tier~0 and Tiers~1--3 are cross-configuration and should be interpreted cautiously.
+
 The temporal overlap between adjacent windows is:
 \begin{equation}
     \text{Overlap}(S) = \frac{W - S}{W}
@@ -110,13 +112,13 @@ Hyperparameters were optimized using Optuna (TPE sampler, 150 trials, 6.1\,h) wi
 
 We extract 26 features per channel (832 total for 32 channels):
 \begin{itemize}
-    \item \textbf{Spectral}: Band Power (5 bands: $\theta$ 4--8\,Hz, $\alpha$ 8--12\,Hz, $\beta_\mathrm{L}$ 12--16\,Hz, $\beta_\mathrm{H}$ 16--25\,Hz, $\gamma$ 25--45\,Hz) and Differential Entropy (same bands)~\cite{shi2013}
+    \item \textbf{Spectral}: Band Power (5 bands: $\theta$ 4--8\,Hz, $\alpha$ 8--12\,Hz, $\beta_\mathrm{L}$ 12--16\,Hz, $\beta_\mathrm{H}$ 16--25\,Hz, $\gamma$ 25--45\,Hz; $\delta$ omitted, bands start at 4\,Hz) and Differential Entropy (same bands)~\cite{shi2013}.
     \item \textbf{Connectivity}: Phase-Locking Value (PLV~\cite{lachaux1999}; 5 bands) and Coherence (5 bands), computed as mean connectivity per channel across all pairs
     \item \textbf{Cross-frequency}: Phase-Amplitude Coupling (PAC~\cite{canolty2010}; 1 coupling: $\theta$ phase to $\gamma$ amplitude, Modulation Index)
     \item \textbf{Temporal}: Band-power temporal variability (variance of BP across 4 sub-windows per band; 5 bands)
 \end{itemize}
 
-Delta (1--4\,Hz) is omitted in this pipeline (bands start at 4\,Hz). This yields 10 spectral (5 BP + 5 DE) + 10 connectivity (5 PLV + 5 coherence) + 1 PAC + 5 temporal = 26 features per channel. Temporal features are computed as band-power variance (Hjorth parameters are not used).
+This yields 10 spectral (5 BP + 5 DE) + 10 connectivity (5 PLV + 5 coherence) + 1 PAC + 5 temporal = 26 features per channel. Temporal features are computed as band-power variance (Hjorth parameters are not used).
 
 Windows of $W = 256$ samples (2\,s) with step $S = 128$ (50\% overlap) are used for Tiers~1--3. Tier~0 uses $S = 16$ (93.75\% overlap).
 
