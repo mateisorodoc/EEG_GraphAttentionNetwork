@@ -1,10 +1,11 @@
 """
 ═══════════════════════════════════════════════════════════════════════════════
-DeepGAT: Optuna Bayesian Hyperparameter Optimization
+DeepGAT: Optuna Bayesian Hyperparameter Optimization (4-class quadrant)
 ═══════════════════════════════════════════════════════════════════════════════
-Optimizes GAT hyperparameters for both:
-  - Tier 2 (trial-aware within-subject) on DEAP
-  - Tier 3 (LOSO cross-subject) on DEAP
+Optimizes GAT hyperparameters for 4-class emotion classification:
+  - Tier 1 (within-subject, leaky)
+  - Tier 2 (trial-aware within-subject)
+  - Tier 3 (LOSO cross-subject)
 
 Objective: Mean of Tier 1 + Tier 2 + Tier 3 F1 scores (equal weight)
 
@@ -19,8 +20,6 @@ Search space:
   - Weight decay: 1e-5 to 1e-2 (log)
   - Label smoothing: 0.0-0.15
   - Input noise: 0.0-0.2
-  - Epochs: 100-300
-  - Patience: 10-30
 ═══════════════════════════════════════════════════════════════════════════════
 """
 
@@ -32,18 +31,18 @@ import optuna
 from optuna.trial import TrialState
 
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from sklearn.metrics import f1_score
 
 import torch
 
 warnings.filterwarnings('ignore')
 
-# Import from our evaluation module
+# Import from unified evaluation module
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from run_evaluation_gat import (
-    DeepGAT_DEAP, EEGDataset, load_deap_data, train_gat_deap,
-    device, SEED, DEAP_N_CH, SUBJECTS, CHANNEL_NAMES_DEAP
+from run_evaluation_unified import (
+    DeepGAT, EEGDataset, load_deap_4class, train_model, normalize_features,
+    device, SEED, DEAP_N_CH, N_CLASSES, SUBJECTS, create_gat
 )
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -64,7 +63,7 @@ TUNING_PATIENCE = 10  # Fixed patience during tuning
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def objective(trial, deap_data, n_feats):
-    """Optuna objective: mean of Tier 1 + Tier 2 + Tier 3 F1."""
+    """Optuna objective: mean of Tier 1 + Tier 2 + Tier 3 F1 (4-class)."""
     
     # ─── Sample hyperparameters ───────────────────────────────────────────────
     n_layers = trial.suggest_int('n_layers', 2, 4)
@@ -82,40 +81,31 @@ def objective(trial, deap_data, n_feats):
         'batch_size': trial.suggest_categorical('batch_size', [128, 256, 512, 1024]),
         'label_smoothing': trial.suggest_float('label_smoothing', 0.0, 0.15),
         'input_noise_std': trial.suggest_float('input_noise_std', 0.0, 0.2),
-        'epochs': TUNING_MAX_EPOCHS,  # Fixed during tuning for speed
-        'patience': TUNING_PATIENCE,  # Fixed during tuning for speed
+        'epochs': TUNING_MAX_EPOCHS,
+        'patience': TUNING_PATIENCE,
     }
     
-    # Derive n_ch from actual data
-    n_ch = list(deap_data.values())[0]['X'].shape[1]
+    n_ch = DEAP_N_CH
     
     # ─── Tier 1: Leaky (subset of subjects, 2 folds) ─────────────────────────
-    from sklearn.model_selection import StratifiedKFold
     tier1_scores = []
     subject_keys = list(deap_data.keys())[:TUNING_SUBJECTS]
     
     for sub_id in subject_keys:
         sub_data = deap_data[sub_id]
-        X = sub_data['X']
-        Y = np.stack([sub_data['Y_aro'], sub_data['Y_val']], axis=1).astype(np.float32)
-        strat = sub_data['Y_aro'] * 2 + sub_data['Y_val']
+        X, Y = sub_data['X'], sub_data['Y']
         
-        if len(np.unique(strat)) < 2:
+        if len(np.unique(Y)) < 2:
             continue
         
         skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=SEED)
         
-        for fold, (tr_idx, te_idx) in enumerate(skf.split(X, strat)):
-            X_tr, X_te = X[tr_idx], X[te_idx]
-            Y_tr, Y_te = Y[tr_idx], Y[te_idx]
-            
-            scaler = StandardScaler()
-            X_tr_s = scaler.fit_transform(X_tr.reshape(-1, n_ch*n_feats)).reshape(-1, n_ch, n_feats)
-            X_te_s = scaler.transform(X_te.reshape(-1, n_ch*n_feats)).reshape(-1, n_ch, n_feats)
-            
-            preds = train_gat_deap(X_tr_s, Y_tr, X_te_s, Y_te, hparams=hparams, seed=SEED+fold)
-            f1 = (f1_score(Y_te[:,0], preds[:,0], zero_division=0) +
-                  f1_score(Y_te[:,1], preds[:,1], zero_division=0)) / 2
+        for fold, (tr_idx, te_idx) in enumerate(skf.split(X, Y)):
+            X_tr_n, X_te_n = normalize_features(X[tr_idx], X[te_idx], n_ch, n_feats)
+            model = create_gat(n_ch, n_feats, hparams)
+            preds = train_model(model, X_tr_n, Y[tr_idx], X_te_n, Y[te_idx],
+                               hparams=hparams, seed=SEED+fold)
+            f1 = f1_score(Y[te_idx], preds, average='macro', zero_division=0)
             tier1_scores.append(f1)
     
     tier1_mean = np.mean(tier1_scores) if tier1_scores else 0.0
@@ -130,32 +120,23 @@ def objective(trial, deap_data, n_feats):
     
     for sub_id in subject_keys:
         sub_data = deap_data[sub_id]
-        X = sub_data['X']
-        Y = np.stack([sub_data['Y_aro'], sub_data['Y_val']], axis=1).astype(np.float32)
-        trials = sub_data['trials']
-        strat = sub_data['Y_aro'] * 2 + sub_data['Y_val']
+        X, Y, trials = sub_data['X'], sub_data['Y'], sub_data['trials']
         
         n_unique_trials = len(np.unique(trials))
         actual_folds = min(TIER2_FOLDS, n_unique_trials)
-        if len(np.unique(strat)) < 2 or actual_folds < 2:
+        if len(np.unique(Y)) < 2 or actual_folds < 2:
             continue
         
         sgkf = StratifiedGroupKFold(n_splits=actual_folds, shuffle=True, random_state=SEED)
         
-        for fold, (tr_idx, te_idx) in enumerate(sgkf.split(X, strat, groups=trials)):
-            X_tr, X_te = X[tr_idx], X[te_idx]
-            Y_tr, Y_te = Y[tr_idx], Y[te_idx]
-            
-            scaler = StandardScaler()
-            X_tr_s = scaler.fit_transform(X_tr.reshape(-1, n_ch*n_feats)).reshape(-1, n_ch, n_feats)
-            X_te_s = scaler.transform(X_te.reshape(-1, n_ch*n_feats)).reshape(-1, n_ch, n_feats)
-            
-            preds = train_gat_deap(X_tr_s, Y_tr, X_te_s, Y_te, hparams=hparams, seed=SEED+fold)
-            f1 = (f1_score(Y_te[:,0], preds[:,0], zero_division=0) +
-                  f1_score(Y_te[:,1], preds[:,1], zero_division=0)) / 2
+        for fold, (tr_idx, te_idx) in enumerate(sgkf.split(X, Y, groups=trials)):
+            X_tr_n, X_te_n = normalize_features(X[tr_idx], X[te_idx], n_ch, n_feats)
+            model = create_gat(n_ch, n_feats, hparams)
+            preds = train_model(model, X_tr_n, Y[tr_idx], X_te_n, Y[te_idx],
+                               hparams=hparams, seed=SEED+fold)
+            f1 = f1_score(Y[te_idx], preds, average='macro', zero_division=0)
             tier2_scores.append(f1)
         
-        # Early pruning: report intermediate result after each subject
         if tier2_scores:
             trial.report(np.mean(tier2_scores), len(tier2_scores))
             if trial.should_prune():
@@ -165,10 +146,7 @@ def objective(trial, deap_data, n_feats):
     
     # ─── Tier 3: LOSO (subset of subjects) ───────────────────────────────────
     all_X = np.concatenate([d['X'] for d in deap_data.values()])
-    all_Y = np.stack([
-        np.concatenate([d['Y_aro'] for d in deap_data.values()]),
-        np.concatenate([d['Y_val'] for d in deap_data.values()])
-    ], axis=1).astype(np.float32)
+    all_Y = np.concatenate([d['Y'] for d in deap_data.values()])
     all_subs = np.concatenate([
         np.full(len(d['X']), int(sid)) for sid, d in deap_data.items()
     ])
@@ -182,13 +160,10 @@ def objective(trial, deap_data, n_feats):
         X_tr, X_te = all_X[train_mask], all_X[test_mask]
         Y_tr, Y_te = all_Y[train_mask], all_Y[test_mask]
         
-        scaler = StandardScaler()
-        X_tr_s = scaler.fit_transform(X_tr.reshape(-1, n_ch*n_feats)).reshape(-1, n_ch, n_feats)
-        X_te_s = scaler.transform(X_te.reshape(-1, n_ch*n_feats)).reshape(-1, n_ch, n_feats)
-        
-        preds = train_gat_deap(X_tr_s, Y_tr, X_te_s, Y_te, hparams=hparams, seed=SEED)
-        f1 = (f1_score(Y_te[:,0], preds[:,0], zero_division=0) +
-              f1_score(Y_te[:,1], preds[:,1], zero_division=0)) / 2
+        X_tr_n, X_te_n = normalize_features(X_tr, X_te, n_ch, n_feats)
+        model = create_gat(n_ch, n_feats, hparams)
+        preds = train_model(model, X_tr_n, Y_tr, X_te_n, Y_te, hparams=hparams, seed=SEED)
+        f1 = f1_score(Y_te, preds, average='macro', zero_division=0)
         tier3_scores.append(f1)
     
     tier3_mean = np.mean(tier3_scores) if tier3_scores else 0.0
@@ -196,7 +171,6 @@ def objective(trial, deap_data, n_feats):
     # Combined objective: equal weight across all 3 tiers
     combined = (tier1_mean + tier2_mean + tier3_mean) / 3
     
-    # Log intermediate info
     trial.set_user_attr('tier1_f1', tier1_mean)
     trial.set_user_attr('tier2_f1', tier2_mean)
     trial.set_user_attr('tier3_f1', tier3_mean)
@@ -232,11 +206,10 @@ if __name__ == '__main__':
     print()
     
     # Load data
-    print('Loading DEAP features...')
-    deap_data, feat_source = load_deap_data()
+    print('Loading DEAP features (4-class quadrant)...')
+    deap_data = load_deap_4class()
     n_feats = list(deap_data.values())[0]['X'].shape[2]
-    print(f'  Source: {feat_source}')
-    print(f'  Subjects: {len(deap_data)} | Features: {n_feats}/channel')
+    print(f'  Subjects: {len(deap_data)} | Features: {n_feats}/channel | Classes: {N_CLASSES}')
     print()
     
     # Create/load study
@@ -244,7 +217,7 @@ if __name__ == '__main__':
     storage = f'sqlite:///{study_path}'
     
     study = optuna.create_study(
-        study_name='deepgat_eeg_32ch',
+        study_name='deepgat_4class_32ch',
         direction='maximize',
         storage=storage,
         load_if_exists=args.resume,
@@ -340,5 +313,5 @@ if __name__ == '__main__':
     
     print(f'\n{"="*70}')
     print(f'Next: Run full evaluation with best hparams:')
-    print(f'  python run_evaluation_gat.py')
+    print(f'  python evaluation/run_evaluation_unified.py')
     print(f'{"="*70}')

@@ -24,10 +24,19 @@ from tqdm import tqdm
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 # ─── Configuration ────────────────────────────────────────────────────────────
-FS = 128  # Sampling frequency
-WINDOW = 256  # 2 seconds
-STEP = 128  # 1 second (reduced overlap from 93.75% to 50% for better independence)
-PRE_TRIAL = 3 * FS  # 3s baseline to skip in DEAP
+# DEAP: BioSemi ActiveTwo @ 128 Hz
+DEAP_FS = 128
+DEAP_WINDOW = 256   # 2 seconds @ 128 Hz
+DEAP_STEP = 128     # 1 second step (50% overlap)
+PRE_TRIAL = 3 * DEAP_FS  # 3s baseline to skip in DEAP
+
+# OpenBCI: Cyton+Daisy @ 125 Hz (confirmed in filter_data.ipynb: TARGET_SFREQ=125.0)
+OPENBCI_FS = 125
+OPENBCI_WINDOW = 250  # 2 seconds @ 125 Hz
+OPENBCI_STEP = 125    # 1 second step (50% overlap)
+
+# Legacy alias (used by feature functions as default)
+FS = 128
 
 BANDS = [(4, 8), (8, 12), (12, 16), (16, 25), (25, 45)]
 BAND_NAMES = ['theta', 'alpha', 'beta_l', 'beta_h', 'gamma']
@@ -306,13 +315,13 @@ def extract_deap_subject(sub_id, feature_groups=None):
         
         # Sliding window
         n_samples = eeg.shape[1]
-        n_windows = (n_samples - WINDOW) // STEP + 1
+        n_windows = (n_samples - DEAP_WINDOW) // DEAP_STEP + 1
         
         for w_idx in range(n_windows):
-            start = w_idx * STEP
-            window = eeg[:, start:start + WINDOW]
+            start = w_idx * DEAP_STEP
+            window = eeg[:, start:start + DEAP_WINDOW]
             
-            feats = extract_features_window(window, FS, feature_groups)
+            feats = extract_features_window(window, DEAP_FS, feature_groups)
             all_features.append(feats)
             all_labels.append([labels[trial_idx, 1], labels[trial_idx, 0]])  # arousal, valence
             all_trials.append(trial_idx)
@@ -330,7 +339,8 @@ def extract_all_deap(feature_groups=None, subjects=None):
         subjects = [f'{i:02d}' for i in range(1, 21)]
     
     print(f'Extracting DEAP features (v6) for {len(subjects)} subjects...')
-    print(f'  Window: {WINDOW} samples ({WINDOW/FS:.1f}s), Step: {STEP} ({STEP/FS:.2f}s)')
+    print(f'  Window: {DEAP_WINDOW} samples ({DEAP_WINDOW/DEAP_FS:.1f}s), Step: {DEAP_STEP} ({DEAP_STEP/DEAP_FS:.2f}s)')
+    print(f'  Sampling rate: {DEAP_FS} Hz')
     print(f'  Feature groups: {feature_groups or "all"}')
     
     for sub_id in tqdm(subjects, desc='DEAP subjects'):
@@ -353,130 +363,85 @@ def extract_all_deap(feature_groups=None, subjects=None):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# OpenBCI EXTRACTION
+# OpenBCI EXTRACTION (from cleaned CSV files)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def extract_openbci_trial(filepath, feature_groups=None, fs=FS):
-    """Extract features from one OpenBCI .npy trial file.
-    
-    The .npy files in data_extracted_v2 contain pre-extracted features.
-    For raw data we need to look in recordings_*_cleaned/ folders.
-    """
-    # data_extracted_v3 has raw-like format: load and window
-    arr = np.load(filepath, allow_pickle=True)
-    
-    # arr is array of [features_array, ...] from old extraction
-    # We need to re-extract from the cleaned recordings instead
-    # For now, use the existing data_extracted_v2 format
-    # Each element is (features_flat,) with shape (160,) = 16ch * 10feats
-    windows = []
-    for row in arr:
-        if isinstance(row, np.ndarray) and row.ndim == 1:
-            # Old format: flat 160-dim vector
-            feat = row[0] if isinstance(row[0], np.ndarray) else row
-            windows.append(feat.reshape(N_CH, -1))
-        elif isinstance(row, (list, np.ndarray)) and len(row) >= 1:
-            feat = row[0] if isinstance(row[0], np.ndarray) else row
-            if hasattr(feat, 'shape'):
-                if feat.ndim == 1:
-                    windows.append(feat.reshape(N_CH, -1))
-                elif feat.ndim == 2:
-                    windows.append(feat)
-    
-    return np.array(windows, dtype=np.float32) if windows else None
+# CSV column order: relative_time,Fp1,Fp2,C3,C4,P7,P8,O1,O2,F7,F8,F3,F4,T7,T8,P3,P4,video
+# We reorder to standard 10-20 layout for consistent spatial interpretation
+CSV_EEG_COLUMNS = ['Fp1','Fp2','C3','C4','P7','P8','O1','O2',
+                   'F7','F8','F3','F4','T7','T8','P3','P4']
+# Target order: left hemisphere anterior→posterior, then right hemisphere
+OPENBCI_TARGET_ORDER = ['Fp1','F3','F7','C3','T7','P3','P7','O1',
+                        'Fp2','F4','F8','C4','T8','P4','P8','O2']
+# Column reorder indices (CSV order → target order)
+_REORDER_IDX = [CSV_EEG_COLUMNS.index(ch) for ch in OPENBCI_TARGET_ORDER]
 
 
-def extract_openbci_from_npy(feature_groups=None):
-    """Extract OpenBCI features from existing .npy caches.
+def extract_openbci_from_csv(feature_groups=None):
+    """Extract 26 features from cleaned OpenBCI CSV recordings.
     
-    Since we don't have raw waveforms easily accessible for re-windowing,
-    we'll load the v3 .npy files which contain raw EEG segments, and
-    re-extract with the new feature pipeline.
+    Reads CSV files from recordings_{class}_cleaned/clean_trial_*.csv
+    Windows at 2s (250 samples) with 1s step (125 samples) at 125 Hz.
+    
+    Returns:
+        X: (N_windows, 16, 26) feature array
+        Y: (N_windows,) class labels [0=calm, 1=happy, 2=sad, 3=stressed]
+        groups: (N_windows,) trial identifiers for GroupKFold
     """
-    v3_dir = os.path.join(OPENBCI_RAW, 'data_extracted_v3')
-    
-    if not os.path.exists(v3_dir):
-        print(f'  ⚠ data_extracted_v3 not found, falling back to v2 format')
-        return _extract_openbci_v2_fallback()
-    
     label_map = {'calm': 0, 'happy': 1, 'sad': 2, 'stressed': 3}
     all_X, all_Y, all_groups = [], [], []
+    trial_id = 0
     
-    files = sorted(glob.glob(os.path.join(v3_dir, '*_clean_trial_*.npy')))
-    print(f'  Found {len(files)} trial files in data_extracted_v3')
-    
-    for fp in tqdm(files, desc='OpenBCI trials'):
-        fname = os.path.basename(fp)
-        cat = fname.split('_clean_trial_')[0]
-        if cat not in label_map:
+    for emotion, label in label_map.items():
+        csv_dir = os.path.join(OPENBCI_RAW, f'recordings_{emotion}_cleaned')
+        if not os.path.isdir(csv_dir):
+            print(f'  ⚠ Directory not found: {csv_dir}')
             continue
         
-        try:
-            raw_data = np.load(fp, allow_pickle=True)
-            # v3 format: (n_windows, 16, raw_samples_per_window)
-            if raw_data.ndim == 3 and raw_data.shape[1] == N_CH:
-                for w_idx in range(raw_data.shape[0]):
-                    window = raw_data[w_idx]  # (16, samples)
-                    if window.shape[1] >= WINDOW:
-                        window = window[:, :WINDOW]
-                        feats = extract_features_window(window, FS, feature_groups)
-                        all_X.append(feats)
-                        all_Y.append(label_map[cat])
-                        all_groups.append(fname)
-            else:
-                # Fallback: treat as pre-extracted
-                for row in raw_data:
-                    feat = row[0] if isinstance(row, (list, np.ndarray)) and len(row) > 0 else row
-                    if hasattr(feat, 'shape') and feat.size == N_CH * 10:
-                        all_X.append(feat.reshape(N_CH, 10))
-                        all_Y.append(label_map[cat])
-                        all_groups.append(fname)
-        except Exception as e:
-            print(f'  ⚠ Error processing {fname}: {e}')
-            continue
+        csv_files = sorted(glob.glob(os.path.join(csv_dir, 'clean_trial_*.csv')))
+        print(f'  {emotion}: {len(csv_files)} trials')
+        
+        for fp in csv_files:
+            try:
+                # Read CSV, skip header
+                import pandas as pd
+                df = pd.read_csv(fp)
+                
+                # Extract EEG columns and reorder
+                eeg = df[CSV_EEG_COLUMNS].values  # (n_samples, 16)
+                eeg = eeg[:, _REORDER_IDX]  # Reorder to standard layout
+                eeg = eeg.T  # (16, n_samples)
+                
+                n_samples = eeg.shape[1]
+                n_windows = (n_samples - OPENBCI_WINDOW) // OPENBCI_STEP + 1
+                
+                if n_windows < 1:
+                    print(f'    ⚠ Trial too short ({n_samples} samples): {os.path.basename(fp)}')
+                    continue
+                
+                for w_idx in range(n_windows):
+                    start = w_idx * OPENBCI_STEP
+                    window = eeg[:, start:start + OPENBCI_WINDOW]
+                    
+                    feats = extract_features_window(window, OPENBCI_FS, feature_groups)
+                    all_X.append(feats)
+                    all_Y.append(label)
+                    all_groups.append(trial_id)
+                
+                trial_id += 1
+                
+            except Exception as e:
+                print(f'    ⚠ Error processing {os.path.basename(fp)}: {e}')
+                continue
     
-    if all_X:
-        return (np.array(all_X, dtype=np.float32),
-                np.array(all_Y, dtype=np.int64),
-                np.array(all_groups))
-    return _extract_openbci_v2_fallback()
-
-
-def _extract_openbci_v2_fallback():
-    """Fallback: load OpenBCI from v2/v3 format (pre-extracted BP+DE only).
+    X = np.array(all_X, dtype=np.float32)
+    Y = np.array(all_Y, dtype=np.int64)
+    groups = np.array(all_groups, dtype=np.int32)
     
-    v3 non-v3-suffix files: (N_windows, 2) object array where col 0 is (16, 10).
-    v2 files: same format.
-    """
-    # Try v3 first (more files), then v2
-    v3_dir = os.path.join(OPENBCI_RAW, 'data_extracted_v3')
-    v2_dir = os.path.join(OPENBCI_RAW, 'data_extracted_v2')
+    print(f'  Total: {X.shape[0]} windows from {trial_id} trials')
+    print(f'  Class distribution: {dict(zip(*np.unique(Y, return_counts=True)))}')
     
-    src_dir = v3_dir if os.path.exists(v3_dir) else v2_dir
-    label_map = {'calm': 0, 'happy': 1, 'sad': 2, 'stressed': 3}
-    all_X, all_Y, all_groups = [], [], []
-    
-    # Get non-v3-suffix files from v3, or all from v2
-    files = sorted(glob.glob(os.path.join(src_dir, '*_clean_trial_*.npy')))
-    files = [f for f in files if not f.endswith('_v3.npy')]
-    print(f'  Loading {len(files)} trial files from {os.path.basename(src_dir)} (BP+DE only)')
-    
-    for fp in files:
-        fname = os.path.basename(fp)
-        cat = fname.split('_clean_trial_')[0]
-        if cat not in label_map:
-            continue
-        arr = np.load(fp, allow_pickle=True)
-        for row in arr:
-            feat = row[0] if isinstance(row, (list, np.ndarray)) and len(row) > 0 else row
-            if hasattr(feat, 'shape') and feat.size == N_CH * 10:
-                all_X.append(feat.reshape(N_CH, 10))
-                all_Y.append(label_map[cat])
-                all_groups.append(fname)
-    
-    return (np.array(all_X, dtype=np.float32),
-            np.array(all_Y, dtype=np.int64),
-            np.array(all_groups))
+    return X, Y, groups
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -496,15 +461,23 @@ if __name__ == '__main__':
     
     if args.dataset in ('deap', 'all'):
         if args.force:
-            # Remove existing cache
             for f in glob.glob(os.path.join(DEAP_OUT, '*.npz')):
                 os.remove(f)
         extract_all_deap(feature_groups, args.subjects)
     
     if args.dataset in ('openbci', 'all'):
-        print('\nExtracting OpenBCI features...')
-        X, Y, groups = extract_openbci_from_npy(feature_groups)
-        if X is not None:
-            np.savez_compressed(os.path.join(OPENBCI_OUT, 'openbci_all.npz'),
-                              X=X, Y=Y, groups=groups)
-            print(f'  Saved: {X.shape[0]} windows, shape per window: {X.shape[1:]}')
+        out_fp = os.path.join(OPENBCI_OUT, 'openbci_all.npz')
+        if args.force and os.path.exists(out_fp):
+            os.remove(out_fp)
+        
+        if os.path.exists(out_fp) and not args.force:
+            d = np.load(out_fp)
+            print(f'\nOpenBCI features already cached: {d["X"].shape}')
+        else:
+            print(f'\nExtracting OpenBCI features from CSV (fs={OPENBCI_FS}Hz)...')
+            print(f'  Window: {OPENBCI_WINDOW} samples ({OPENBCI_WINDOW/OPENBCI_FS:.1f}s)')
+            print(f'  Step: {OPENBCI_STEP} samples ({OPENBCI_STEP/OPENBCI_FS:.1f}s)')
+            X, Y, groups = extract_openbci_from_csv(feature_groups)
+            np.savez_compressed(out_fp, X=X, Y=Y, groups=groups)
+            print(f'  Saved: {out_fp}')
+            print(f'  Shape: X={X.shape}, Y={Y.shape}')
