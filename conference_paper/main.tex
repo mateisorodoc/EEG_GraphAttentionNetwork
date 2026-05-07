@@ -41,9 +41,9 @@ EEG-based emotion recognition studies frequently report classification accuracie
 
 \section{INTRODUCTION}
 
-EEG-based emotion recognition has attracted considerable research attention, with numerous studies reporting classification accuracies between 85--99\% on benchmark datasets such as DEAP~\cite{koelstra2012}. However, many results are obtained using evaluation protocols that inadvertently violate the independence assumption between training and test samples, leading to severely inflated performance estimates~\cite{varoquaux2017, roberts2017, saeb2017}.
+EEG-based emotion recognition has attracted considerable research attention, with numerous studies reporting classification accuracies between 85--99\% on benchmark datasets such as DEAP~\cite{koelstra2012}. However, many results are obtained using evaluation protocols that inadvertently violate the independence assumption between training and test samples, leading to severely inflated performance estimates~\cite{varoquaux2017, roberts2017}.
 
-The core issue is \emph{trial leakage}: when EEG signals are segmented into overlapping windows and these windows are randomly assigned to training and test sets without respecting trial boundaries, near-duplicate feature vectors appear in both sets. A classifier can exploit temporal autocorrelation rather than learning genuine emotional representations. Even moderate overlap (50\%, as used in our study) produces correlated feature vectors across adjacent windows; extreme overlap (93.75\%) used in some studies~\cite{craik2019} exacerbates this problem dramatically.
+The core issue is \emph{trial leakage}: when EEG signals are segmented into overlapping windows and these windows are randomly assigned to training and test sets without respecting trial boundaries, near-duplicate feature vectors appear in both sets. A classifier can exploit temporal autocorrelation rather than learning genuine emotional representations. Even moderate overlap (50\%, as used in our study) produces correlated feature vectors across adjacent windows; extreme overlap used in some studies~\cite{craik2019} exacerbates this problem dramatically.
 
 The remainder of this paper is organized as follows: Section~II reviews related work. Section~III describes the four-tier methodology, feature extraction and datasets. Section~IV presents experimental results for both 4-class and binary classification. Section~V discusses implications. Section~VI concludes.
 
@@ -58,13 +58,13 @@ This paper makes three contributions:
 
 \subsection{EEG Emotion Recognition}
 
-The DEAP dataset~\cite{koelstra2012} is the most widely used benchmark for EEG emotion recognition, featuring 32 subjects watching 40 one-minute music videos while 32-channel EEG is recorded. Self-reported arousal and valence ratings (1--9 scale) serve as ground truth. Published results vary widely: the original paper reports 57.6\% accuracy for subject-dependent classification, while subsequent deep learning studies report 90--99\%~\cite{craik2019}. Zhong et al.~\cite{zhong2020} applied regularized Graph Neural Networks under LOSO evaluation, achieving 56.3\% accuracy, consistent with our Tier~3 findings. Zheng and Lu~\cite{zheng2015} reported 69.7\% for valence under subject-dependent evaluation using deep belief networks, aligning with our Tier~1 binary valence result (77.7\%). This consistency across studies validates our tier classification scheme.
+The DEAP dataset~\cite{koelstra2012} is the most widely used benchmark for EEG emotion recognition, featuring 32 subjects watching 40 one-minute music videos while 32-channel EEG is recorded. Self-reported arousal and valence ratings (1--9 scale) serve as ground truth. Published results vary widely: the original paper reports 62.0\% (arousal) and 57.5\% (valence) accuracy for binary subject-dependent classification, while subsequent deep learning studies report 90--99\%~\cite{craik2019}. Zhong \textit{et al.}~\cite{zhong2020} applied regularized Graph Neural Networks to EEG emotion recognition on the SEED dataset, demonstrating the utility of graph-based spatial modeling under cross-subject evaluation. Zheng and Lu~\cite{zheng2015} investigated critical frequency bands for deep neural network-based emotion recognition, also on SEED. Neither study reports results on DEAP's continuous arousal-valence formulation---not because the methods preclude it, but because those evaluations were out of scope---leaving a gap in directly comparable cross-study benchmarks that our framework addresses.
 
-The discrepancy between LOSO ($\sim$56\%) and random-split ($>$90\%) results represents a critical confound that our framework aims to quantify.
+The discrepancy between rigorous cross-subject evaluation and random-split ($>$90\%) results represents a critical confound that our framework aims to quantify.
 
 \subsection{Evaluation Methodology}
 
-Data leakage in neuroimaging classification is well-documented. Varoquaux et al.~\cite{varoquaux2017} demonstrated that improper cross-validation inflates brain decoding accuracy. Roberts et al.~\cite{roberts2017} showed that temporal and hierarchical data structures require specialized CV strategies. Our four-tier framework instantiates these principles specifically for EEG-BCI, extending prior work by separately quantifying trial leakage versus cross-subject generalization difficulty.
+Data leakage in neuroimaging classification is well-documented. Varoquaux \textit{et al.}~\cite{varoquaux2017} demonstrated that improper cross-validation inflates brain decoding accuracy. Roberts \textit{et al.}~\cite{roberts2017} showed that temporal and hierarchical data structures require specialized CV strategies. Our four-tier framework instantiates these principles specifically for EEG-BCI, extending prior work by separately quantifying trial leakage versus cross-subject generalization difficulty.
 
 \subsection{Graph Neural Networks for EEG}
 
@@ -78,7 +78,7 @@ We define four tiers of increasing methodological rigor. The temporal overlap be
 \begin{equation}
     \text{Overlap}(S) = \frac{W - S}{W}
 \end{equation}
-where $W$ is the window length (2\,s) and $S$ is the step size. With $S = W/2$ (our configuration), overlap is 50\%. A random split places adjacent windows in different sets with probability 0.32, enabling exploitation of shared signal content.
+where $W$ is the window length (2\,s) and $S$ is the step size. With $S = W/2$ (our configuration), overlap is 50\%. A random split places adjacent windows in different sets with probability 0.36, enabling exploitation of shared signal content.
 
 \textbf{Tier~0 (Maximum Leakage):} All subjects pooled. Windows extracted with 50\% overlap. Random 80/20 split without respecting subject or trial boundaries.
 
@@ -86,7 +86,7 @@ where $W$ is the window length (2\,s) and $S$ is the step size. With $S = W/2$ (
 
 \textbf{Tier~2 (Trial-Aware):} Per-subject StratifiedGroupKFold where groups = trials. No temporal leakage: all windows from a given trial are assigned to the same fold. This is the minimum standard for valid within-subject evaluation.
 
-\textbf{Tier~3 (Cross-Subject LOSO):} Leave-One-Subject-Out. Trains on 19 subjects, tests on the held-out subject. Evaluates cross-individual generalization.
+\textbf{Tier~3 (Cross-Subject LOSO):} Leave-One-Subject-Out. Trains on 19 subjects, tests on the held-out subject. Evaluates cross-subject generalization.
 
 \subsection{DeepGAT Architecture}
 
@@ -150,7 +150,7 @@ Labels & Self-report (median split) & Experimenter-assigned \\
 \scriptsize\textsuperscript{*}Full stimulus list available at: \url{https://docs.google.com/spreadsheets/d/1xvwLRa_QE4QsopQWWJBoMO-lzheScZMt5OZLdEFLDng}
 \end{table}
 
-The DEAP subjects (s01--s20) were selected sequentially. Labels derive from self-report arousal and valence ratings using per-subject median splits, forming four quadrants: HAHV, HALV, LAHV, LALV. The OpenBCI dataset uses experimenter-assigned labels based on emotional content of music stimuli selected from validated databases~\cite{zentner2008}. Both approaches map to the same arousal-valence space, with chance level at 25\% (4-class) or 50\% (binary).
+The DEAP subjects (s01--s20) were selected sequentially as a 20-subject subset due to computational constraints; the full DEAP corpus contains 32 subjects. Labels derive from self-report arousal and valence ratings using per-subject median splits, forming four quadrants: HAHV, HALV, LAHV, LALV. The OpenBCI dataset uses experimenter-assigned labels based on emotional content of music stimuli selected from validated databases~\cite{zentner2008}; the single participant was the lead author, who provided informed self-consent. Both approaches map to the same arousal-valence space, with chance level at 25\% (4-class) or 50\% (binary).
 
 \subsection{Training Protocol}
 
@@ -160,7 +160,7 @@ Both models use AdamW with cosine annealing and class-weighted cross-entropy los
 
 \subsection{4-Class Quadrant Classification}
 
-Table~\ref{tab:models} presents macro F1 across all tiers. The dominant finding is a 29.5-point F1 drop from T0 to T2, with an additional 10.1-point drop to T3.
+Table~\ref{tab:models} presents macro F1 across all tiers. The dominant finding is a 29.6-point F1 drop from T0 to T2, with an additional 10.1-point drop to T3.
 
 \begin{table}[t]
 \centering
@@ -178,7 +178,7 @@ Tier & MLP ($\sim$116K) & GAT ($\sim$126K) \\
 \end{tabular}
 \end{table}
 
-The T1$\to$T2 transition ($\Delta_{\text{GAT}}=-0.337$) identifies trial leakage as the primary inflation source. The T2$\to$T3 gap ($\Delta=-0.101$) reflects cross-subject generalization difficulty. Paired $t$-tests with Bonferroni correction confirm all tier transitions are significant: T1 vs.\ T2: $t=13.99$, $p<0.001$, $d=3.21$; T2 vs.\ T3: $t=5.69$, $p<0.001$, $d=1.31$.
+The T0$\to$T1 increase ($\Delta_{\text{GAT}}=+0.041$) is not contradictory: Tier~0 pools all subjects in a single random split, introducing implicit cross-subject generalization difficulty; Tier~1 evaluates per-subject, removing this component while retaining trial leakage. The T1$\to$T2 transition ($\Delta_{\text{GAT}}=-0.337$) identifies trial leakage as the primary inflation source. The T2$\to$T3 gap ($\Delta=-0.101$) reflects cross-subject generalization difficulty. Paired $t$-tests with Bonferroni correction confirm all tier transitions are significant: T1 vs.\ T2: $t=13.99$, $p<0.001$, $d=3.21$; T2 vs.\ T3: $t=5.69$, $p<0.001$, $d=1.31$.
 
 Under T2, GAT slightly outperforms MLP ($\Delta=+0.013$, $d=0.74$, $p<0.05$), suggesting graph-based spatial modelling provides a genuine but modest benefit once leakage is removed.
 
@@ -216,7 +216,7 @@ Dim. & Tier & MLP & GAT \\
 \end{tabular}
 \end{table}
 
-The same degradation pattern persists: T1$\to$T2 drops of 17.1 (arousal) and 15.6 (valence) points for MLP confirm trial leakage inflates binary results similarly to 4-class. Valence is consistently more discriminable than arousal across all tiers, consistent with prior findings that spectral asymmetry features encode valence information more reliably~\cite{zheng2015}. Notably, arousal T3 (0.516) is barely above chance (0.50), while valence T2 (0.649) remains substantially above chance, suggesting that valence may be more amenable to EEG-based classification than arousal.
+The same degradation pattern persists: T1$\to$T2 drops of 14.6 (arousal) and 12.8 (valence) points for GAT confirm trial leakage inflates binary results similarly to 4-class. Valence is consistently more discriminable than arousal across all tiers, consistent with prior findings that frontal EEG asymmetry features encode valence information more reliably~\cite{allen2004, smith2017}. Notably, at the same evaluation tier (T2), valence (0.649 GAT) consistently outperforms arousal (0.597 GAT), suggesting that valence may be more amenable to EEG-based classification than arousal.
 
 An important observation is that the GAT advantage over MLP becomes more pronounced under stricter evaluation tiers. At T2, GAT outperforms MLP by 1.4 points (arousal) and 0.6 points (valence); at T3, this gap widens to 5.7 points (arousal) and 4.2 points (valence). This pattern reinforces the hypothesis that GAT's spatial attention mechanism captures genuine emotional signal rather than exploiting temporal leakage.
 
@@ -250,7 +250,7 @@ The minimal degradation from T1 (0.998) to T2 (0.981) contrasts sharply with the
 
 \subsection{Explainability Analysis}
 
-Attention weight analysis of the trained GAT reveals the top-5 most attended channels: CP2, T7, AF4, P3, CP1. The prominence of temporal (T7) and parietal (CP1, CP2, P3) electrodes is consistent with established neuroscience findings linking these regions to emotional processing~\cite{allen2004}. Frontal attention asymmetry (AF4) aligns with the valence lateralization hypothesis, which posits that the right prefrontal cortex is more involved in withdrawal-related (negative valence) emotions. The learned attention patterns provide interpretable evidence that the GAT captures physiologically meaningful spatial relationships rather than arbitrary feature correlations.
+Attention weight analysis of the trained GAT reveals the top-5 most attended channels: CP2, T7, AF4, P3, CP1. The prominence of temporal (T7) and parietal (CP1, CP2, P3) electrodes is consistent with established neuroscience findings linking these regions to emotional processing~\cite{allen2004}. Frontal attention asymmetry (AF4) aligns with the valence lateralization hypothesis, which posits that the right prefrontal cortex is more involved in withdrawal-related (negative valence) emotions~\cite{allen2004, smith2017}. The learned attention patterns provide interpretable evidence that the GAT captures physiologically meaningful spatial relationships rather than arbitrary feature correlations.
 
 \section{DISCUSSION}
 
@@ -272,7 +272,7 @@ The practical implication is clear: for consumer EEG-BCI applications (e.g., ada
 
 \subsection{Comparison with Published Results}
 
-Table~\ref{tab:lit} contextualizes our results against published DEAP benchmarks. The alignment between our tier-assigned results and reported values from independent studies provides external validation of the framework.
+Table~\ref{tab:lit} contextualizes our results against published DEAP benchmarks. The table confirms that the tier framework correctly categorizes published protocols: the original DEAP result falls at T2, while inflated high-accuracy studies cluster at T0.
 
 \begin{table}[t]
 \centering
@@ -282,10 +282,8 @@ Table~\ref{tab:lit} contextualizes our results against published DEAP benchmarks
 \toprule
 Study & Protocol & Result & $\approx$Tier \\
 \midrule
-Koelstra~\cite{koelstra2012} & Subj.-dep. & 57.6\% Acc & $\sim$T2 \\
-Zhong~\cite{zhong2020} & LOSO & 56.3\% Acc & T3 \\
-Zheng \& Lu~\cite{zheng2015} & Subj.-dep. & 69.7\% (Val) & $\sim$T1 \\
-High-accuracy studies & Random split & 90--99\% & T0 \\
+Koelstra~\cite{koelstra2012} & Subj.-dep. & 57.5--62.0\% Acc & $\sim$T2 \\
+High-accuracy studies~\cite{qian2024} & Random split & 90--99\% & T0 \\
 \midrule
 Ours (T2, binary val.) & Trial-aware & 64.9\% F1 & T2 \\
 Ours (T3, 4-class) & LOSO & 21.0\% F1 & T3 \\
@@ -293,19 +291,19 @@ Ours (T3, 4-class) & LOSO & 21.0\% F1 & T3 \\
 \end{tabular}
 \end{table}
 
-Our Tier~2 binary valence (0.649 F1) is consistent with Koelstra et al.'s subject-dependent result, and our Tier~3 4-class performance aligns with Zhong et al.'s LOSO finding when accounting for the increased difficulty of 4-class versus binary classification ($\text{chance}_{4\text{-class}} = 0.25$ vs $\text{chance}_{\text{binary}} = 0.50$). The convergence of results from independent implementations under comparable evaluation conditions strengthens confidence in the reliability of T2/T3 as realistic performance benchmarks.
+Our Tier~2 binary valence (0.649 F1) exceeds the original DEAP benchmark (Koelstra \textit{et al.}: 57.5\% accuracy and F1=0.563 for binary valence under subject-dependent evaluation), confirming that trial-aware within-subject evaluation produces realistic, reproducible benchmarks. Published LOSO baselines on DEAP's specific arousal-valence formulation are scarce, making our Tier~3 result (21.0\% 4-class F1) a novel reference point for cross-subject generalization difficulty on this dataset.
 
 Studies reporting $>$90\% accuracy invariably use random splits or trial-leaky cross-validation, which our framework classifies as T0 or T1. This does not invalidate the models proposed in those studies, but contextualizes the reported metrics as upper bounds that include leakage-inflated components.
 
 \subsection{Limitations}
 
-This study uses 20 of 32 DEAP subjects due to computational constraints. The OpenBCI result ($n$=1) serves as proof-of-concept for personalization and requires multi-subject replication. We evaluate only two architectures; CNN-based (EEGNet) and Transformer-based models may exhibit different degradation patterns. The four-tier framework does not address session effects or stimulus-order confounds. Additionally, our PLV and Coherence features are averaged per channel rather than preserved as pairwise edge weights, partially under-utilizing the graph structure that GAT could exploit.
+This study uses 20 of 32 DEAP subjects due to computational constraints. The OpenBCI result ($n$=1) serves as proof-of-concept for personalization and requires multi-subject replication. We evaluate only two architectures; CNN-based (EEGNet~\cite{lawhern2018}) and Transformer-based models may exhibit different degradation patterns. The four-tier framework does not address session effects or stimulus-order confounds. Additionally, our PLV and Coherence features are averaged per channel rather than preserved as pairwise edge weights, partially under-utilizing the graph structure that GAT could exploit.
 
 \subsection{Implications for Future Research}
 
 Based on our findings, we identify several directions for advancing EEG-based emotion recognition under proper evaluation:
 
-\textbf{Domain adaptation:} The T2$\to$T3 drop ($\Delta=-0.101$) suggests that subject-alignment techniques (Euclidean Alignment, CORAL and adversarial domain adaptation) could recover a significant portion of performance lost to inter-subject variability.
+\textbf{Domain adaptation:} The T2$\to$T3 drop ($\Delta=-0.101$) suggests that subject-alignment techniques (Euclidean Alignment, CORAL and adversarial domain adaptation)~\cite{lotte2018} could recover a significant portion of performance lost to inter-subject variability.
 
 \textbf{Graph structure:} Our fully-connected adjacency matrix forces the GAT to learn connectivity from scratch. Using neurophysiologically-informed adjacency (e.g., from resting-state coherence or anatomical distance) may improve generalization by incorporating prior knowledge about functional brain networks.
 
@@ -315,9 +313,9 @@ Based on our findings, we identify several directions for advancing EEG-based em
 
 We present a four-tier evaluation framework quantifying how evaluation methodology inflates EEG emotion classification performance. Key findings: (1)~protocol selection accounts for a 39.7-point macro F1 variation, dominating any architectural difference; (2)~trial leakage ($\Delta=-0.337$, $d=3.21$) is the primary inflation source; (3)~under trial-aware evaluation, GAT provides a modest advantage over MLP ($d=0.74$); (4)~personalized within-subject models achieve 0.981 F1 (trial-aware), demonstrating BCI viability when inter-subject variability is eliminated; (5)~binary valence classification (F1=0.649 at T2) confirms these findings generalize to the more commonly reported binary task.
 
-We recommend trial-aware evaluation (T2) as the minimum reporting standard for EEG-BCI studies, and encourage researchers to report both a leaky (T1) and trial-aware (T2) result to transparently quantify the role of temporal autocorrelation in their reported performance. All code and features are publicly available for reproducibility.
+We recommend trial-aware evaluation (T2) as the minimum reporting standard for EEG-BCI studies, and encourage researchers to report both a leaky (T1) and trial-aware (T2) result to transparently quantify the role of temporal autocorrelation in their reported performance. All code and features are publicly available at \url{https://github.com/mateisorodoc/Quantifying-Data-Leakage-in-EEG-Emotion-Classification} for reproducibility.
 
-\begin{thebibliography}{15}
+\begin{thebibliography}{18}
 
 \bibitem{koelstra2012}
 S.~Koelstra \emph{et al.}, ``DEAP: A database for emotion analysis using physiological signals,'' \emph{IEEE Trans. Affective Computing}, vol.~3, no.~1, pp.~18--31, 2012.
@@ -328,14 +326,11 @@ G.~Varoquaux \emph{et al.}, ``Assessing and tuning brain decoders: Cross-validat
 \bibitem{roberts2017}
 D.~R.~Roberts \emph{et al.}, ``Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure,'' \emph{Ecography}, vol.~40, no.~8, pp.~913--929, 2017.
 
-\bibitem{saeb2017}
-S.~Saeb, L.~Lonini, A.~Jayaraman, D.~C.~Mohr, and K.~P.~Kording, ``The need to approximate the use-case in clinical machine learning,'' \emph{GigaScience}, vol.~6, no.~5, pp.~1--9, 2017.
-
 \bibitem{craik2019}
 A.~Craik, Y.~He, and J.~L.~Contreras-Vidal, ``Deep learning for electroencephalogram (EEG) classification tasks: A review,'' \emph{J. Neural Engineering}, vol.~16, no.~3, p.~031001, 2019.
 
 \bibitem{zhong2020}
-P.~Zhong, D.~Wang, and C.~Miao, ``EEG-based emotion recognition using regularized graph neural networks,'' \emph{IEEE Trans. Affective Computing}, vol.~11, no.~3, pp.~532--541, 2020.
+P.~Zhong, D.~Wang, and C.~Miao, ``EEG-based emotion recognition using regularized graph neural networks,'' \emph{IEEE Trans. Affective Computing}, vol.~13, no.~3, pp.~1290--1301, 2020.
 
 \bibitem{zheng2015}
 W.-L.~Zheng and B.-L.~Lu, ``Investigating critical frequency bands and channels for EEG-based emotion recognition with deep neural networks,'' \emph{IEEE Trans. Autonomous Mental Development}, vol.~7, no.~3, pp.~162--175, 2015.
@@ -350,19 +345,31 @@ T.~Akiba, S.~Sano, T.~Yanase, T.~Ohta, and M.~Koyama, ``Optuna: A next-generatio
 J.-P.~Lachaux, E.~Rodriguez, J.~Martinerie, and F.~J.~Varela, ``Measuring phase synchrony in brain signals,'' \emph{Human Brain Mapping}, vol.~8, no.~4, pp.~194--208, 1999.
 
 \bibitem{canolty2010}
+\nopagebreak
 R.~T.~Canolty and R.~T.~Knight, ``The functional role of cross-frequency coupling,'' \emph{Trends in Cognitive Sciences}, vol.~14, no.~11, pp.~506--515, 2010.
 
 \bibitem{russell1980}
+\nopagebreak
 J.~A.~Russell, ``A circumplex model of affect,'' \emph{J. Personality and Social Psychology}, vol.~39, no.~6, pp.~1161--1178, 1980.
 
 \bibitem{zentner2008}
 M.~Zentner, D.~Grandjean, and K.~R.~Scherer, ``Emotions evoked by the sound of music: Characterization, classification, and measurement,'' \emph{Emotion}, vol.~8, no.~4, pp.~494--521, 2008.
 
 \bibitem{allen2004}
+\nopagebreak
 J.~J.~B.~Allen, J.~A.~Coan, and M.~Nazarian, ``Issues and assumptions on the road from raw signals to metrics of frontal EEG asymmetry in emotion,'' \emph{Biological Psychology}, vol.~67, no.~1--2, pp.~183--218, 2004.
+
+\bibitem{smith2017}
+E.~E.~Smith, S.~J.~Reznik, J.~L.~Stewart, and J.~J.~B.~Allen, ``Assessing and conceptualizing frontal EEG asymmetry: An updated primer on recording, processing, analyzing, and interpreting frontal alpha asymmetry,'' \emph{Int. J. Psychophysiol.}, vol.~111, pp.~98--114, 2017.
 
 \bibitem{lotte2018}
 F.~Lotte \emph{et al.}, ``A review of classification algorithms for EEG-based brain-computer interfaces: A 10 year update,'' \emph{J. Neural Engineering}, vol.~15, no.~3, p.~031005, 2018.
+
+\bibitem{qian2024}
+R.~Qian, X.~Xiong, J.~Zhou, H.~Yu, and K.~Sha, ``CSA-SA-CRTNN: A dual-stream adaptive convolutional cyclic hybrid network combining attention mechanisms for EEG emotion recognition,'' \emph{Brain Sciences}, vol.~14, no.~8, p.~817, 2024.
+
+\bibitem{lawhern2018}
+V.~J.~Lawhern, A.~J.~Solon, N.~R.~Waytowich, S.~M.~Gordon, C.~P.~Hung, and B.~J.~Lance, ``EEGNet: A compact convolutional network for EEG-based brain-computer interfaces,'' \emph{J. Neural Engineering}, vol.~15, no.~6, p.~056013, 2018.
 
 \end{thebibliography}
 
