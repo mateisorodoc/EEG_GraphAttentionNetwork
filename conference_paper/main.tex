@@ -150,7 +150,7 @@ Labels & Self-report (median split) & Experimenter-assigned \\
 \scriptsize\textsuperscript{*}Full stimulus list available at: \url{https://docs.google.com/spreadsheets/d/1xvwLRa_QE4QsopQWWJBoMO-lzheScZMt5OZLdEFLDng}
 \end{table}
 
-The DEAP subjects (s01--s20) were selected sequentially as a 20-subject subset due to computational constraints; the full DEAP corpus contains 32 subjects. Labels derive from self-report arousal and valence ratings using per-subject median splits, forming four quadrants: HAHV, HALV, LAHV, LALV. The OpenBCI dataset uses experimenter-assigned labels based on emotional content of music stimuli selected from validated databases~\cite{zentner2008}; the single participant was the lead author, who provided informed self-consent. Both approaches map to the same arousal-valence space, with chance level at 25\% (4-class) or 50\% (binary).
+The DEAP subjects (s01--s20) were selected sequentially as a 20-subject subset due to computational constraints; the full DEAP corpus contains 32 subjects. Labels derive from self-report arousal and valence ratings using per-subject median splits, forming four quadrants: HAHV, HALV, LAHV, LALV. Music stimuli for the custom OpenBCI dataset were manually selected to explicitly target the four quadrants of Russell's arousal-valence space (calm, happy, sad, stressed), with 25 tracks assigned to each category by the experimenter. The single participant was the lead author, who provided informed self-consent. Both approaches map to the same arousal-valence space, with chance level at 25\% (4-class) or 50\% (binary).
 
 \subsection{Training Protocol}
 
@@ -250,7 +250,7 @@ The minimal degradation from T1 (0.998) to T2 (0.981) contrasts sharply with the
 
 \subsection{Explainability Analysis}
 
-Attention weight analysis of the trained GAT reveals the top-5 most attended channels: CP2, T7, AF4, P3, CP1. The prominence of temporal (T7) and parietal (CP1, CP2, P3) electrodes is consistent with established neuroscience findings linking these regions to emotional processing~\cite{allen2004}. Frontal attention asymmetry (AF4) aligns with the valence lateralization hypothesis, which posits that the right prefrontal cortex is more involved in withdrawal-related (negative valence) emotions~\cite{allen2004, smith2017}. The learned attention patterns provide interpretable evidence that the GAT captures physiologically meaningful spatial relationships rather than arbitrary feature correlations.
+Attention weight analysis of the trained GAT reveals the top-5 most attended channels: CP2, T7, AF4, P3, CP1. The prominence of temporal (T7) and parietal (CP1, CP2, P3) electrodes is consistent with established neuroscience findings linking these regions to emotional processing~\cite{heller1993, koelsch2014}. Frontal attention asymmetry (AF4) aligns with the valence lateralization hypothesis, which posits that the right prefrontal cortex is more involved in withdrawal-related (negative valence) emotions~\cite{allen2004, smith2017}. The learned attention patterns provide interpretable evidence that the GAT captures physiologically meaningful spatial relationships rather than arbitrary feature correlations.
 
 \section{DISCUSSION}
 
@@ -352,15 +352,18 @@ R.~T.~Canolty and R.~T.~Knight, ``The functional role of cross-frequency couplin
 \nopagebreak
 J.~A.~Russell, ``A circumplex model of affect,'' \emph{J. Personality and Social Psychology}, vol.~39, no.~6, pp.~1161--1178, 1980.
 
-\bibitem{zentner2008}
-M.~Zentner, D.~Grandjean, and K.~R.~Scherer, ``Emotions evoked by the sound of music: Characterization, classification, and measurement,'' \emph{Emotion}, vol.~8, no.~4, pp.~494--521, 2008.
-
 \bibitem{allen2004}
 \nopagebreak
 J.~J.~B.~Allen, J.~A.~Coan, and M.~Nazarian, ``Issues and assumptions on the road from raw signals to metrics of frontal EEG asymmetry in emotion,'' \emph{Biological Psychology}, vol.~67, no.~1--2, pp.~183--218, 2004.
 
 \bibitem{smith2017}
 E.~E.~Smith, S.~J.~Reznik, J.~L.~Stewart, and J.~J.~B.~Allen, ``Assessing and conceptualizing frontal EEG asymmetry: An updated primer on recording, processing, analyzing, and interpreting frontal alpha asymmetry,'' \emph{Int. J. Psychophysiol.}, vol.~111, pp.~98--114, 2017.
+
+\bibitem{heller1993}
+W.~Heller, ``Neuropsychological mechanisms of individual differences in emotion, personality, and arousal,'' \emph{Neuropsychology}, vol.~7, no.~4, pp.~476--489, 1993.
+
+\bibitem{koelsch2014}
+S.~Koelsch, ``Brain correlates of music-evoked emotions,'' \emph{Nature Reviews Neuroscience}, vol.~15, no.~3, pp.~170--180, 2014.
 
 \bibitem{lotte2018}
 F.~Lotte \emph{et al.}, ``A review of classification algorithms for EEG-based brain-computer interfaces: A 10 year update,'' \emph{J. Neural Engineering}, vol.~15, no.~3, p.~031005, 2018.
